@@ -47,4 +47,8 @@ class Constants
   const STORAGE_TICKETS  = __DIR__ . '/../storage/tickets/';
   const STORAGE_QRCODES  = __DIR__ . '/../storage/qrcodes/';
   const STORAGE_BANNERS  = __DIR__ . '/../storage/banners/';
+
+  // checkin mode - for multi day check in
+  const CHECKIN_MODE_SINGLE    = 'single';
+  const CHECKIN_MODE_MULTI_DAY = 'multi_day';
 }
