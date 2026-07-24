@@ -103,8 +103,9 @@ class EventController
   // ============================================================
   // GET /api/events/:id
   // GET /api/events/:slug
-  //
-  // FIX #3: Replaced e.tickets_sold with v_event_sales join.
+  // NEW: expose checkin_mode / checkin_days so the frontend can
+  // decide whether to show "x/y days used" on the attendee's
+  // ticket views.
   // ============================================================
   public function show(array $params): void
   {
@@ -126,6 +127,8 @@ class EventController
                 e.end_date,
                 e.total_tickets,
                 e.status,
+                e.checkin_mode,
+                e.checkin_days,
                 e.created_at,
                 COALESCE(s.tickets_sold, 0)      AS tickets_sold,
                 COALESCE(s.tickets_available, 0)  AS tickets_available,
@@ -172,6 +175,9 @@ class EventController
   // ============================================================
   // POST /api/events
   // Protected: organizer or dev only
+  //
+  // NEW: checkin_mode / checkin_days are now actually persisted
+  // to the events table (previously computed but never inserted).
   // ============================================================
   public function store(): void
   {
@@ -205,6 +211,14 @@ class EventController
     if (!isset($input['total_tickets']) || (int) $input['total_tickets'] < 1) {
       $errors['total_tickets'] = 'Total tickets must be at least 1.';
     }
+
+    $checkinMode = in_array($input['checkin_mode'] ?? '', [Constants::CHECKIN_MODE_SINGLE, Constants::CHECKIN_MODE_MULTI_DAY], true)
+      ? $input['checkin_mode']
+      : Constants::CHECKIN_MODE_SINGLE;
+
+    $checkinDays = $checkinMode === Constants::CHECKIN_MODE_MULTI_DAY
+      ? max(1, min(30, (int) ($input['checkin_days'] ?? 1)))
+      : 1;
 
     if (!empty($errors)) {
       Response::validationError($errors);
@@ -241,9 +255,11 @@ class EventController
 
     $stmt = $this->db->prepare("
             INSERT INTO events
-                (organizer_id, category_id, title, slug, description, location, banner_image, contact_email, contact_phone, start_date, end_date, total_tickets, status)
+                (organizer_id, category_id, title, slug, description, location, banner_image,
+                 contact_email, contact_phone, start_date, end_date, total_tickets, status,
+                 checkin_mode, checkin_days)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
     $stmt->execute([
@@ -260,6 +276,8 @@ class EventController
       $input['end_date'],
       (int) $input['total_tickets'],
       $input['status']       ?? Constants::EVENT_DRAFT,
+      $checkinMode,
+      $checkinDays,
     ]);
 
     $eventId = $this->db->lastInsertId();
@@ -315,6 +333,30 @@ class EventController
     if (!empty($phone) && !preg_match('/^(\+234|234|0)(7|8|9)[0-1]\d{8}$/', $phone)) {
       $errors['contact_phone'] = 'Enter a valid enquiry phone number.';
     }
+
+    // ── Check-in mode / days — only touch what was actually sent ──
+    $checkinModeProvided = array_key_exists('checkin_mode', $input);
+    $checkinDaysProvided = array_key_exists('checkin_days', $input);
+
+    $checkinMode = null; // null => COALESCE keeps existing DB value
+    $checkinDays = null;
+
+    if ($checkinModeProvided) {
+      $checkinMode = in_array($input['checkin_mode'], [Constants::CHECKIN_MODE_SINGLE, Constants::CHECKIN_MODE_MULTI_DAY], true)
+        ? $input['checkin_mode']
+        : Constants::CHECKIN_MODE_SINGLE;
+    }
+
+    if ($checkinModeProvided || $checkinDaysProvided) {
+      // Whichever mode ends up in effect (new one if sent, else the
+      // event's current one) decides whether days collapses to 1.
+      $effectiveMode = $checkinMode ?? $event['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE;
+
+      $checkinDays = $effectiveMode === Constants::CHECKIN_MODE_MULTI_DAY
+        ? max(1, min(30, (int) ($input['checkin_days'] ?? $event['checkin_days'] ?? 1)))
+        : 1;
+    }
+
     if (!empty($errors)) {
       Response::validationError($errors);
     }
@@ -394,7 +436,9 @@ class EventController
         start_date    = COALESCE(?, start_date),
         end_date      = COALESCE(?, end_date),
         total_tickets = COALESCE(?, total_tickets),
-        status        = COALESCE(?, status)
+        status        = COALESCE(?, status),
+        checkin_mode  = COALESCE(?, checkin_mode),
+        checkin_days  = COALESCE(?, checkin_days)
       WHERE id = ?
     ");
 
@@ -404,14 +448,14 @@ class EventController
       $input['description']   ?? null,
       $input['location']      ?? null,
       $input['banner_image']  ?? null,
-      $contactEmailProvided,
       $contactEmailProvided ? (trim($input['contact_email']) ?: null) : null,
-      $contactPhoneProvided,
       $contactPhoneProvided ? (trim($input['contact_phone']) ?: null) : null,
       $input['start_date']    ?? null,
       $input['end_date']      ?? null,
       $input['total_tickets'] ?? null,
       $input['status']        ?? null,
+      $checkinMode,
+      $checkinDays,
       $eventId,
     ]);
 
@@ -534,13 +578,16 @@ class EventController
 
   private function castEventFields(array $event): array
   {
-    $event['id']                  = (int) $event['id'];
-    $event['organizer_id']         = (int) $event['organizer_id'];
-    $event['category_id']          = $event['category_id'] !== null ? (int) $event['category_id'] : null;
-    $event['total_tickets']        = (int) $event['total_tickets'];
-    $event['tickets_sold']          = (int) $event['tickets_sold'];
-    $event['tickets_available']     = (int) $event['tickets_available'];
-    $event['total_revenue']         = (float) $event['total_revenue'];
+    $event['id']                 = (int) $event['id'];
+    $event['organizer_id']       = (int) $event['organizer_id'];
+    $event['category_id']        = $event['category_id'] !== null ? (int) $event['category_id'] : null;
+    $event['total_tickets']      = (int) $event['total_tickets'];
+    $event['tickets_sold']       = (int) $event['tickets_sold'];
+    $event['tickets_available']  = (int) $event['tickets_available'];
+    $event['total_revenue']      = (float) $event['total_revenue'];
+    if (isset($event['checkin_days'])) {
+      $event['checkin_days'] = (int) $event['checkin_days'];
+    }
     return $event;
   }
   // ============================================================
