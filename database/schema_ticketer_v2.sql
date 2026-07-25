@@ -450,6 +450,26 @@ ALTER TABLE `tickets`
 
 ALTER TABLE `ticket_types`
   ADD CONSTRAINT `ticket_types_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE RESTRICT;
+  
+  -- events: add check-in configuration
+ALTER TABLE events
+  ADD COLUMN checkin_mode ENUM('single','multi_day') NOT NULL DEFAULT 'single' AFTER total_tickets,
+  ADD COLUMN checkin_days TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER checkin_mode;
+
+-- one row per (ticket, day) a ticket was scanned
+CREATE TABLE ticket_checkins (
+  id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ticket_id      INT UNSIGNED NOT NULL,
+  event_id       INT UNSIGNED NOT NULL,
+  day_number     TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  checked_in_by  INT UNSIGNED DEFAULT NULL,
+  created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_ticket_day (ticket_id, day_number),
+  KEY idx_event_day (event_id, day_number),
+  CONSTRAINT fk_tc_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tc_event  FOREIGN KEY (event_id)  REFERENCES events(id)  ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 
 -- ============================================================
