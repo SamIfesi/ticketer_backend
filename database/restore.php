@@ -68,34 +68,73 @@ if ($sql === false) {
   exit(1);
 }
 
+// mysqldump wraps trigger/procedure/function bodies in
+// "DELIMITER ;;  ...  DELIMITER ;" blocks, since those bodies contain
+// semicolons of their own. DELIMITER is a mysql-CLI-only directive —
+// mysqli doesn't understand it — so pull those blocks out, strip the
+// DELIMITER lines, and run each definition as its own single query()
+// call (its internal semicolons are fine within one statement).
+$delimiterBlocks = [];
+$sql = preg_replace_callback(
+  '/DELIMITER\s+;;(.*?)DELIMITER\s+;/s',
+  function ($m) use (&$delimiterBlocks) {
+    foreach (explode(';;', $m[1]) as $stmt) {
+      $stmt = trim($stmt);
+      if ($stmt !== '') {
+        $delimiterBlocks[] = $stmt;
+      }
+    }
+    return ''; // remove the block from the main SQL body
+  },
+  $sql
+);
+
 fwrite(STDOUT, "Executing " . number_format(strlen($sql)) . " bytes of SQL. This may take a moment...\n");
 
 // multi_query lets the MySQL server parse statement boundaries itself,
 // so semicolons inside quoted string data (e.g. addresses, descriptions)
 // are handled correctly.
-if (!$conn->multi_query($sql)) {
-  fwrite(STDERR, "Query failed: " . $conn->error . "\n");
-  exit(1);
+$statementCount = 0;
+if (trim($sql) !== '') {
+  if (!$conn->multi_query($sql)) {
+    fwrite(STDERR, "Query failed: " . $conn->error . "\n");
+    exit(1);
+  }
+
+  do {
+    if ($result = $conn->store_result()) {
+      $result->free();
+    }
+    $statementCount++;
+    if ($conn->more_results()) {
+      $next = $conn->next_result();
+      if (!$next) {
+        fwrite(STDERR, "\nError on statement #{$statementCount}: " . $conn->error . "\n");
+        exit(1);
+      }
+    } else {
+      break;
+    }
+  } while (true);
 }
 
-$statementCount = 0;
-do {
-  if ($result = $conn->store_result()) {
-    $result->free();
-  }
-  $statementCount++;
-  if ($conn->more_results()) {
-    $next = $conn->next_result();
-    if (!$next) {
-      fwrite(STDERR, "\nError on statement #{$statementCount}: " . $conn->error . "\n");
+fwrite(STDOUT, "Done. Executed {$statementCount} statement(s).\n");
+
+// Now run any trigger/procedure/function definitions pulled out above,
+// each as its own single query (internal semicolons are safe here
+// because the whole body is sent as ONE statement, not split).
+if (!empty($delimiterBlocks)) {
+  fwrite(STDOUT, "Creating " . count($delimiterBlocks) . " trigger/procedure/function definition(s)...\n");
+  foreach ($delimiterBlocks as $i => $stmt) {
+    if (!$conn->query($stmt)) {
+      fwrite(STDERR, "Error creating definition #" . ($i + 1) . ": " . $conn->error . "\n");
+      fwrite(STDERR, "Statement was:\n{$stmt}\n\n");
       exit(1);
     }
-  } else {
-    break;
   }
-} while (true);
+  fwrite(STDOUT, "All trigger/procedure/function definitions created.\n");
+}
 
-fwrite(STDOUT, "Done. Executed {$statementCount} statement(s).\n");
 
 // Quick sanity check
 $tables = [];
@@ -105,7 +144,7 @@ while ($row = $res->fetch_row()) {
 }
 fwrite(STDOUT, "Tables now in '{$db}': " . implode(', ', $tables) . "\n");
 
-foreach (['users', 'bookings', 'tickets'] as $t) {
+foreach ([ 'activity_logs', 'bookings', 'categories', 'dev_logs', 'email_verifications', 'event_payouts', 'events', 'jobs', 'notifications', 'organizer_applications', 'organizer_payment_details', 'ticket_checkins', 'ticket_types', 'tickets', 'transaction_logs', 'users' ] as $t) {
   if (in_array($t, $tables, true)) {
     $c = $conn->query("SELECT COUNT(*) AS c FROM `{$t}`")->fetch_assoc()['c'];
     fwrite(STDOUT, "  {$t}: {$c} rows\n");
