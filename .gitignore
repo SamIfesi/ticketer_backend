@@ -21,3 +21,4 @@ node_modules/
 public/assets/tailwind.css
 worker.php
 *.dump
+database/*.dump
