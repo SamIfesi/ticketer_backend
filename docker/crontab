@@ -1,6 +1,0 @@
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-* * * * * root echo "cron alive at $(date)" >> /var/log/cron-test.log 2>&1
-* * * * * www-data . /container_env.sh; cd /var/www/html && php email_worker.php >> /var/www/html/storage/logs/email_worker.log 2>&1
-*/2 * * * * www-data . /container_env.sh; cd /var/www/html && php pdf_worker.php >> /var/www/html/storage/logs/pdf_worker.log 2>&1
-*/15 * * * * www-data . /container_env.sh; cd /var/www/html && php payout_worker.php >> /var/www/html/storage/logs/payout_worker.log 2>&1
