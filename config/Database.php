@@ -13,8 +13,9 @@ class Database
       $name   = Environment::get('DATABASE_NAME');
       $user   = Environment::get('DATABASE_USER');
       $pass   = Environment::get('DATABASE_PASS', '');
+      $port   = Environment::get('DATABASE_PORT', 3306);
 
-      $dsn = "mysql:host={$host};dbname={$name};charset=utf8mb4";
+      $dsn = "mysql:host={$host};dbname={$name};port={$port};charset=utf8mb4";
 
       try {
         self::$instance = new PDO($dsn, $user, $pass, [
