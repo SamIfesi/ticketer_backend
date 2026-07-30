@@ -84,6 +84,14 @@ class TicketController
     $ticket['qr_code_url'] = QRCodeService::getUrl($ticket['qr_token']);
     $ticket['status'] = $ticket['is_used'] ? 'used' : 'valid';
 
+    // after computing $ticket['status'] = $ticket['is_used'] ? 'used' : 'valid';
+    if ($ticket['checkin_mode'] === 'multi_day') {
+      $stmt = $this->db->prepare("SELECT COUNT(*) FROM ticket_checkins WHERE ticket_id = ?");
+      $stmt->execute([$ticket['id']]);
+      $ticket['days_used']  = (int) $stmt->fetchColumn();
+      $ticket['total_days'] = (int) $ticket['checkin_days'];
+    }
+
     // ── NEW: multi-day progress ──
     if (($ticket['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE) === Constants::CHECKIN_MODE_MULTI_DAY) {
       $stmt = $this->db->prepare("SELECT COUNT(*) FROM ticket_checkins WHERE ticket_id = ?");
@@ -183,6 +191,13 @@ class TicketController
       QRCodeService::generate($ticket['qr_token']);
       $ticket['qr_code_url'] = QRCodeService::getUrl($ticket['qr_token']);
       $ticket['status'] = $ticket['is_used'] ? 'used' : 'valid';
+
+      if ($ticket['checkin_mode'] === 'multi_day') {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM ticket_checkins WHERE ticket_id = ?");
+        $stmt->execute([$ticket['id']]);
+        $ticket['days_used']  = (int) $stmt->fetchColumn();
+        $ticket['total_days'] = (int) $ticket['checkin_days'];
+      }
 
       if (($ticket['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE) === Constants::CHECKIN_MODE_MULTI_DAY) {
         $ticket['days_used']  = $daysUsedByTicket[(int) $ticket['id']] ?? 0;
