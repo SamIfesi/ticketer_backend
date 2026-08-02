@@ -105,7 +105,7 @@ foreach ($jobs as $job) {
           $payload['ticket_type'],
           $payload['quantity'],
           $payload['total_amount'],
-          $payload['dashboard_url'],
+          $payload['page_url'],
           $bookingRef ? "booking-{$bookingRef}-confirm" : ''
         );
         break;
