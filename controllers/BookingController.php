@@ -113,7 +113,12 @@ class BookingController
           $ticketTypeId,
           $quantity,
         ]);
-        $bookingId = $this->db->lastInsertId();
+        $bookingId = (int) $this->db->lastInsertId();
+
+        // Generate + save the professional booking number now that we have a real id
+        $bookingNumber = TokenHelper::generateDisplayId($bookingId, 'BK');
+        $this->db->prepare("UPDATE bookings SET booking_number = ? WHERE id = ?")
+          ->execute([$bookingNumber, $bookingId]);
 
         // FIX: manually increment quantity_sold for free tickets
         // The trg_booking_paid trigger only fires on UPDATE not INSERT
@@ -138,9 +143,15 @@ class BookingController
             $ticketType['event_id'],
             $qrToken,
           ]);
+          $ticketId     = (int) $this->db->lastInsertId();
+          $ticketNumber = TokenHelper::generateDisplayId($ticketId, 'TK');
+          $this->db->prepare("UPDATE tickets SET ticket_number = ? WHERE id = ?")
+            ->execute([$ticketNumber, $ticketId]);
+
           $tickets[] = [
-            'id'       => $this->db->lastInsertId(),
-            'qr_token' => $qrToken,
+            'id'            => $ticketId,
+            'ticket_number' => $ticketNumber,
+            'qr_token'      => $qrToken,
           ];
         }
 
@@ -162,9 +173,10 @@ class BookingController
         QueueService::generateTicket($bookingId, 10); // Queue ticket PDF generation
 
         Response::success([
-          'booking_id' => $bookingId,
-          'free'       => true,
-          'tickets'    => $tickets,
+          'booking_id'     => $bookingId,
+          'booking_number' => $bookingNumber,
+          'free'           => true,
+          'tickets'        => $tickets,
         ], 'Your free ticket has been issued!');
         return;
       }
@@ -189,7 +201,12 @@ class BookingController
         $totalAmount,
         $reference,
       ]);
-      $bookingId = $this->db->lastInsertId();
+      $bookingId = (int) $this->db->lastInsertId();
+
+      // Generate + save the professional booking number.
+      $bookingNumber = TokenHelper::generateDisplayId($bookingId, 'BK');
+      $this->db->prepare("UPDATE bookings SET booking_number = ? WHERE id = ?")
+        ->execute([$bookingNumber, $bookingId]);
 
       // Commit before calling Paystack — no point holding
       // a DB lock while waiting on an external HTTP request
@@ -228,6 +245,7 @@ class BookingController
 
         Response::success([
           'booking_id'        => $bookingId,
+          'booking_number'    => $bookingNumber,
           'reference'         => $reference,
           'amount'            => $totalAmount,
           'authorization_url' => $transaction['authorization_url'],
@@ -300,11 +318,12 @@ class BookingController
       )->execute([$newReference, $existing['id']]);
 
       Response::success([
-        'has_pending'   => true,
-        'booking_id'    => (int) $existing['id'],
-        'reference'     => $newReference,
-        'amount'        => (float) $existing['total_amount'],
-        'access_code'   => $transaction['access_code'],
+        'has_pending'    => true,
+        'booking_id'     => (int) $existing['id'],
+        'booking_number' => $existing['booking_number'],
+        'reference'      => $newReference,
+        'amount'         => (float) $existing['total_amount'],
+        'access_code'    => $transaction['access_code'],
       ]);
     } catch (Exception $e) {
       Response::success(['has_pending' => false]);
@@ -365,6 +384,7 @@ class BookingController
     if ($booking['payment_status'] === Constants::PAYMENT_PAID) {
       Response::success([
         'booking_id'     => (int) $booking['id'],
+        'booking_number' => $booking['booking_number'],
         'event'          => $booking['event_title'],
         'tickets_issued' => (int) $booking['quantity'],
       ], 'Booking already confirmed.');
@@ -430,6 +450,7 @@ class BookingController
           $this->db->rollBack();
           Response::success([
             'booking_id'     => (int) $booking['id'],
+            'booking_number' => $booking['booking_number'],
             'event'          => $booking['event_title'],
             'tickets_issued' => (int) $booking['quantity'],
           ], 'Booking already confirmed.');
@@ -497,7 +518,9 @@ class BookingController
         }
         // ── END NEW ──
 
-        // 9. Issue one ticket row per quantity purchased
+        // 9. Issue one ticket row per quantity purchased.
+        // This is the ONLY place tickets are created for paid bookings,
+        // so ticket_number generation belongs here — one per real ticket id.
         $tickets = [];
         $stmt    = $this->db->prepare("
                     INSERT INTO tickets (booking_id, user_id, event_id, qr_token)
@@ -511,9 +534,16 @@ class BookingController
             $booking['event_id'],
             $qrToken,
           ]);
+
+          $ticketId     = (int) $this->db->lastInsertId();
+          $ticketNumber = TokenHelper::generateDisplayId($ticketId, 'TK');
+          $this->db->prepare("UPDATE tickets SET ticket_number = ? WHERE id = ?")
+            ->execute([$ticketNumber, $ticketId]);
+
           $tickets[] = [
-            'id'       => (int) $this->db->lastInsertId(),
-            'qr_token' => $qrToken,
+            'id'            => $ticketId,
+            'ticket_number' => $ticketNumber,
+            'qr_token'      => $qrToken,
           ];
         }
 
@@ -548,6 +578,7 @@ class BookingController
 
       Response::success([
         'booking_id'     => (int) $booking['id'],
+        'booking_number' => $booking['booking_number'],
         'event'          => $booking['event_title'],
         'tickets_issued' => count($tickets),
       ], 'Payment confirmed! Your tickets have been issued.');
@@ -567,6 +598,7 @@ class BookingController
     $stmt = $this->db->prepare("
             SELECT
                 b.id,
+                b.booking_number,
                 b.quantity,
                 b.unit_price,
                 b.total_amount,
@@ -636,7 +668,7 @@ class BookingController
 
     // Fetch tickets for this booking
     $stmt = $this->db->prepare("
-            SELECT id, qr_token, is_used, used_at, created_at
+            SELECT id, ticket_number, qr_token, is_used, used_at, created_at
             FROM tickets
             WHERE booking_id = ? AND deleted_at IS NULL
         ");
@@ -672,6 +704,7 @@ class BookingController
     $stmt = $this->db->prepare("
             SELECT
                 b.id,
+                b.booking_number,
                 b.quantity,
                 b.unit_price,
                 b.total_amount,
