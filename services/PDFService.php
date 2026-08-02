@@ -291,7 +291,7 @@ class PDFService
 
     // ── Format values ─────────────────────────────────────
     $ticketId       = (int) $ticket['id'];
-    $ticketIdPadded = str_pad($ticketId, 6, '0', STR_PAD_LEFT);
+    $ticketIdPadded = $ticket['ticket_number'] ?? TokenHelper::generateDisplayId($ticketId, 'TK');
     $amount         = (float) $booking['unit_price'] === 0.0
       ? 'Free'
       : '₦' . number_format((float) $booking['unit_price'], 0);
