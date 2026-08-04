@@ -1,6 +1,5 @@
 <?php
 
-// ============================================================
 // EMAIL WORKER
 // Handles only email jobs: OTPs, ticket confirmations,
 // password change notifications.
@@ -13,7 +12,6 @@
 //
 // HOW TO RUN ON RAILWAY / DOCKER (cron):
 //   * * * * * php /var/www/html/email_worker.php
-// ============================================================
 
 declare(strict_types=1);
 
@@ -32,10 +30,8 @@ $db = Database::connect();
 
 echo "[" . date('Y-m-d H:i:s') . "] Email worker started.\n";
 
-// ============================================================
 // Fetch up to 20 pending email jobs
 // Email jobs are fast so we can process more per run
-// ============================================================
 $db->prepare("
     UPDATE bookings
     SET payment_status = 'failed'
@@ -134,6 +130,18 @@ foreach ($jobs as $job) {
           $payload['otp']
         );
         break;
+
+        // Event Reminder
+        case 'send_event_reminder':
+          $success = $mailer->sendEventReminder(
+            $payload['email'],
+            $payload['name'],
+            $payload['event_title'],
+            $payload['event_date'],
+            $payload['event_location'],
+            $payload['page_url']
+          );
+          break;
 
       // ── Unknown type landed in the email queue ────────────────
       default:
