@@ -24,11 +24,9 @@ class TransactionController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/transactions/mine
   // Attendee — their own payment history.
   // Shows every transaction log entry tied to their user_id.
-  // ============================================================
   public function mine(): void
   {
     $userId = $this->request->user['id'];
@@ -74,7 +72,6 @@ class TransactionController
     ]);
   }
 
-  // ============================================================
   // GET /api/organizer/transactions
   // Organizer — revenue ledger for all their events.
   // Includes a summary (gross, organizer cut, platform fee,
@@ -85,7 +82,6 @@ class TransactionController
   //   ?type=        filter by transaction type
   //   ?from=        date range start (YYYY-MM-DD)
   //   ?to=          date range end   (YYYY-MM-DD)
-  // ============================================================
   public function organizer(): void
   {
     $userId = $this->request->user['id'];
@@ -183,7 +179,6 @@ class TransactionController
     ]);
   }
 
-  // ============================================================
   // GET /api/admin/transactions
   // Admin/Dev — platform-wide transaction log with full filters.
   //
@@ -194,7 +189,6 @@ class TransactionController
   //   ?type=          filter by transaction type
   //   ?from=          date range start
   //   ?to=            date range end
-  // ============================================================
   public function admin(): void
   {
     $page   = max(1, (int) $this->request->query('page', '1'));
@@ -270,7 +264,6 @@ class TransactionController
     ]);
   }
 
-  // ============================================================
   // GET /api/admin/transactions/summary
   // Admin/Dev — financial KPIs for a date range.
   // Defaults to current month if no dates provided.
@@ -278,7 +271,6 @@ class TransactionController
   // Query params:
   //   ?from=  start date (YYYY-MM-DD), default: first day of month
   //   ?to=    end date   (YYYY-MM-DD), default: today
-  // ============================================================
   public function summary(): void
   {
     $from = trim($this->request->query('from', date('Y-m-01')));
@@ -327,11 +319,9 @@ class TransactionController
     ]);
   }
 
-  // ============================================================
   // GET /api/admin/transactions/:bookingId
   // Full audit trail for a single booking — every state change
   // from initiated → confirmed/failed → refunded.
-  // ============================================================
   public function byBooking(array $params): void
   {
     $bookingId = (int) $params['bookingId'];

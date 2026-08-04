@@ -43,9 +43,7 @@ class MailService
     $this->logoUrl   = Environment::get('MAIL_LOGO_URL',     '');
   }
 
-  // ============================================================
   // Welcome email — new user (email registration OR Google)
-  // ============================================================
   public function sendWelcome(string $toEmail, string $toName): bool
   {
     $body =
@@ -74,9 +72,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // OTP — registration or email change
-  // ============================================================
   public function sendOTP(
     string $toEmail,
     string $toName,
@@ -110,9 +106,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // Forgot password OTP
-  // ============================================================
   public function sendForgotPasswordOTP(
     string $toEmail,
     string $toName,
@@ -135,9 +129,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // Ticket confirmation — after successful payment
-  // ============================================================
   public function sendTicketConfirmation(
     string $toEmail,
     string $toName,
@@ -181,9 +173,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // Event reminder — sent 2 days before the event starts
-  // ============================================================
   public function sendEventReminder(
     string $toEmail,
     string $toName,
@@ -217,9 +207,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // Password changed notification
-  // ============================================================
   public function sendPasswordChanged(string $toEmail, string $toName): bool
   {
     $body =
@@ -241,9 +229,7 @@ class MailService
     );
   }
 
-  // ============================================================
   // PRIVATE — SendByte API call
-  // ============================================================
   private function send(
     string $toEmail,
     string $toName,
@@ -302,9 +288,7 @@ class MailService
     return true;
   }
 
-  // ============================================================
   // PRIVATE — Master HTML template (redesigned, Instagram-style)
-  // ============================================================
   private function template(
     string $headline,
     string $intro,
@@ -384,9 +368,7 @@ class MailService
 HTML;
   }
 
-// ============================================================
 // PRIVATE — Reusable building blocks (redesigned)
-// ============================================================
 
   /** Large centred OTP code block — plain, no dashed border/box tint */
   private function otpBlock(string $otp): string

@@ -11,13 +11,11 @@ class EventController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/events
   //
   // FIX #3: Replaced e.tickets_sold (removed column) with a
   // LEFT JOIN on v_event_sales for live accurate counts.
   // Also excludes soft-deleted events.
-  // ============================================================
   public function index(): void
   {
     // Grab optional filter params from query string
@@ -100,13 +98,11 @@ class EventController
     ]);
   }
 
-  // ============================================================
   // GET /api/events/:id
   // GET /api/events/:slug
   // NEW: expose checkin_mode / checkin_days so the frontend can
   // decide whether to show "x/y days used" on the attendee's
   // ticket views.
-  // ============================================================
   public function show(array $params): void
   {
     $identifier = $params['id'];
@@ -171,13 +167,11 @@ class EventController
     Response::success(['event' => $event]);
   }
 
-  // ============================================================
   // POST /api/events
   // Protected: organizer or dev only
   //
   // NEW: checkin_mode / checkin_days are now actually persisted
   // to the events table (previously computed but never inserted).
-  // ============================================================
   public function store(): void
   {
     $input  = $this->request->body;
@@ -293,10 +287,8 @@ class EventController
     Response::success(['event' => $stmt->fetch()], 'Event created successfully.', 201);
   }
 
-  // ============================================================
   // PUT /api/events/:id
   // Protected: organizer (own events only) or dev
-  // ============================================================
   public function update(array $params): void
   {
     $eventId = (int) $params['id'];
@@ -472,7 +464,6 @@ class EventController
     Response::success(['event' => $updatedEvent], 'Event updated successfully.');
   }
 
-  // ============================================================
   // DELETE /api/events/:id
   // Protected: organizer (own events) or admin or dev
   //
@@ -484,7 +475,6 @@ class EventController
   // To fully soft-delete (hide from organizer dashboard too),
   // admin uses PUT /api/admin/events/:id/status with 'deleted'.
   // That stamps deleted_at and triggers the activity_log entry.
-  // ============================================================
   public function destroy(array $params): void
   {
     $eventId = (int) $params['id'];
@@ -526,12 +516,10 @@ class EventController
     Response::success(null, 'Event cancelled successfully. All existing bookings and tickets are preserved.');
   }
 
-  // ============================================================
   // GET /api/organizer/events
   //
   // FIX #3: Replaced e.tickets_sold with v_event_sales join.
   // FIX: Excludes soft-deleted events from organizer view.
-  // ============================================================
   public function myEvents(): void
   {
     $userId = $this->request->user['id'];
@@ -589,9 +577,7 @@ class EventController
     }
     return $event;
   }
-  // ============================================================
   // PRIVATE HELPERS
-  // ============================================================
 
   /**
    * Convert an event title to a URL-friendly slug

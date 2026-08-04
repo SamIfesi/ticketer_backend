@@ -12,9 +12,7 @@ class NotificationService
     return self::$db;
   }
 
-  // ============================================================
   // Core push — all helpers call this
-  // ============================================================
   public static function push(
     int     $userId,
     string  $type,
@@ -37,9 +35,7 @@ class NotificationService
     }
   }
 
-  // ============================================================
   // ATTENDEE NOTIFICATIONS
-  // ============================================================
 
   public static function bookingConfirmed(
     int    $userId,
@@ -172,9 +168,7 @@ class NotificationService
     );
   }
 
-  // ============================================================
   // ORGANIZER NOTIFICATIONS
-  // ============================================================
 
   public static function newBookingReceived(
     int    $organizerId,
@@ -294,9 +288,7 @@ class NotificationService
     );
   }
 
-  // ============================================================
   // ADMIN NOTIFICATIONS
-  // ============================================================
 
   public static function adminPayoutFailed(
     int    $adminId,
@@ -367,9 +359,7 @@ class NotificationService
     );
   }
   
-  // ============================================================
   // ORGANIZER APPLICATION NOTIFICATIONS
-  // ============================================================
   
   public static function organizerApplicationSubmitted(
     int    $userId,
@@ -412,9 +402,7 @@ class NotificationService
     );
   }
 
-  // ============================================================
   // BULK — notify all paid attendees of an event
-  // ============================================================
   public static function notifyEventAttendees(
     PDO     $db,
     int     $eventId,

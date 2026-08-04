@@ -11,13 +11,11 @@ class ProfileController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/profile
   //
   // FIX #3: organizer_stats no longer reads events.tickets_sold.
   // Uses v_event_sales view for accurate live totals.
   // FIX #6: booking_stats filters deleted_at IS NULL.
-  // ============================================================
   public function show(): void
   {
     $userId = $this->request->user['id'];
@@ -109,11 +107,9 @@ class ProfileController
     Response::success(['profile' => $user]);
   }
 
-  // ============================================================
   // PUT /api/profile
   // Protected: logged in
   // Update name and/or avatar
-  // ============================================================
   public function update(): void
   {
     $userId = $this->request->user['id'];
@@ -150,11 +146,9 @@ class ProfileController
     Response::success(['user' => $stmt->fetch()], 'Profile updated successfully.');
   }
 
-  // ============================================================
   // POST /api/profile/change-password
   // Protected: logged in
   // Requires current password before setting a new one
-  // ============================================================
   public function changePassword(): void
   {
     $userId          = $this->request->user['id'];
@@ -205,10 +199,8 @@ class ProfileController
     Response::success(null, 'Password changed successfully.');
   }
 
-  // ============================================================
   // POST /api/profile/change-email
   // Step 1 — sends OTP to new email
-  // ============================================================
   public function requestEmailChange(): void
   {
     $userId   = $this->request->user['id'];
@@ -256,10 +248,8 @@ class ProfileController
     Response::success(null, "A verification code has been sent to {$newEmail}. Enter it to confirm the change.");
   }
 
-  // ============================================================
   // POST /api/profile/confirm-email-change
   // Step 2 — verifies OTP and updates email
-  // ============================================================
   public function confirmEmailChange(): void
   {
     $userId = $this->request->user['id'];
@@ -307,11 +297,9 @@ class ProfileController
     Response::success(null, 'Email address updated successfully.');
   }
 
-  // ============================================================
   // GET /api/profile/bookings
   //
   // FIX #6: Added deleted_at IS NULL filter on bookings.
-  // ============================================================
   public function bookings(): void
   {
     $userId = $this->request->user['id'];
@@ -357,12 +345,10 @@ class ProfileController
     Response::success(['bookings' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // GET /api/profile/tickets
   //
   // FIX #6: Added deleted_at IS NULL on tickets and bookings.
   // Also excludes tickets for soft-deleted events.
-  // ============================================================
   public function tickets(): void
   {
     $userId = $this->request->user['id'];
@@ -422,11 +408,9 @@ class ProfileController
     Response::success(['tickets' => $tickets]);
   }
 
-  // ============================================================
   // GET /api/profile/activity
   // Protected: logged in
   // User's activity log — logins, password changes, etc.
-  // ============================================================
   public function activity(): void
   {
     $userId = $this->request->user['id'];
@@ -444,9 +428,7 @@ class ProfileController
     Response::success(['activity' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // PRIVATE HELPERS
-  // ============================================================
 
   private function generateOTP(): string
   {

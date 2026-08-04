@@ -1,10 +1,8 @@
 <?php
 
-// ============================================================
 // DEV ROUTES — SECRET BACKDOOR
 // All routes use DevMiddleware which returns 404 to non-dev users
 // These routes are completely invisible to admins
-// ============================================================
 
 $router->get('/api/dev/overview',              [DevController::class, 'overview'],       [DevMiddleware::class]);
 $router->get('/api/dev/users',                 [DevController::class, 'users'],          [DevMiddleware::class]);

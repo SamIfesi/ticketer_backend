@@ -1,6 +1,5 @@
 <?php
 
-// ============================================================
 // PAYOUT WORKER
 // Runs as a cron job nightly (or every hour on Railway).
 // Finds events where:
@@ -16,7 +15,6 @@
 //   Add a cron job: php payout_worker.php
 //   Recommended schedule: 0 2 * * *  (2am daily)
 //   Or every hour:        0 * * * *
-// ============================================================
 
 declare(strict_types=1);
 
@@ -35,9 +33,7 @@ $db = Database::connect();
 
 echo "[" . date('Y-m-d H:i:s') . "] Payout worker started.\n";
 
-// ============================================================
 // Find all events ready for payout
-// ============================================================
 $stmt = $db->prepare("
     SELECT
         ep.event_id,

@@ -1,6 +1,5 @@
 <?php
 
-// ============================================================
 // PDF WORKER
 // Handles only PDF ticket generation jobs.
 //
@@ -13,7 +12,6 @@
 //
 // HOW TO RUN ON RAILWAY / DOCKER (cron):
 //   */5 * * * * php /var/www/html/pdf_worker.php
-// ============================================================
 
 declare(strict_types=1);
 
@@ -32,11 +30,9 @@ $db = Database::connect();
 
 echo "[" . date('Y-m-d H:i:s') . "] PDF worker started.\n";
 
-// ============================================================
 // Fetch up to 5 pending PDF jobs
 // Each job can spin up Chromium — keep this number low to
 // avoid OOM kills on the container
-// ============================================================
 $stmt = $db->prepare("
     SELECT * FROM jobs
     WHERE status       = 'pending'

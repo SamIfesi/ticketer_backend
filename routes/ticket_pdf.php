@@ -1,6 +1,5 @@
 <?php
 
-// ============================================================
 // TICKET PDF + PNG ROUTES
 //
 // Downloads are always single-ticket. There is no booking-level
@@ -10,7 +9,6 @@
 // NOTE: /status and /regenerate operate on a whole booking (they
 // check/rebuild every ticket under it), but the actual download
 // routes are keyed by ticket id, not booking id.
-// ============================================================
 
 // ── Attendee / Organizer — booking-level status + regenerate ──
 

@@ -23,13 +23,11 @@ class NotificationController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/notifications
   // Paginated list of notifications for the logged-in user.
   // Optional ?unread=1 to filter unread only.
   // Also returns total unread count so the bell badge
   // stays accurate without a second request.
-  // ============================================================
   public function index(): void
   {
     $userId     = $this->request->user['id'];
@@ -97,11 +95,9 @@ class NotificationController
     ]);
   }
 
-  // ============================================================
   // GET /api/notifications/unread
   // Lightweight endpoint — just the unread count for the bell badge.
   // Frontend can poll this every 30 seconds cheaply.
-  // ============================================================
   public function unreadCount(): void
   {
     $stmt = $this->db->prepare(
@@ -112,11 +108,9 @@ class NotificationController
     Response::success(['unread_count' => (int) $stmt->fetchColumn()]);
   }
 
-  // ============================================================
   // PUT /api/notifications/read-all
   // Mark ALL of the user's unread notifications as read at once.
   // Called when user opens the notification panel.
-  // ============================================================
   public function markAllRead(): void
   {
     $stmt = $this->db->prepare("
@@ -132,11 +126,9 @@ class NotificationController
     );
   }
 
-  // ============================================================
   // PUT /api/notifications/:id/read
   // Mark a single notification as read.
   // Users can only mark their own notifications.
-  // ============================================================
   public function markRead(array $params): void
   {
     $notifId = (int) $params['id'];
@@ -161,11 +153,9 @@ class NotificationController
     Response::success(null, 'Notification marked as read.');
   }
 
-  // ============================================================
   // DELETE /api/notifications/:id
   // Delete a single notification.
   // Users can only delete their own notifications.
-  // ============================================================
   public function destroy(array $params): void
   {
     $notifId = (int) $params['id'];

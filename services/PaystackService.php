@@ -9,9 +9,7 @@ class PaystackService
     $this->secretKey = Environment::get('PAYSTACK_SECRET_KEY');
   }
 
-  // ============================================================
   // Initialize a transaction (unchanged)
-  // ============================================================
   public function initializeTransaction(string $email, float $amount, string $reference, array $metadata = []): array
   {
     $body = json_encode([
@@ -30,9 +28,7 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // EXISTING — verify a transaction (unchanged)
-  // ============================================================
   public function verifyTransaction(string $reference): array
   {
     $response = $this->makeRequest('GET', "/transaction/verify/{$reference}");
@@ -44,14 +40,12 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Resolve account number
   // Verifies a bank account and returns the account holder name.
   // Call this before saving organizer bank details.
   //
   // Returns: ['account_name' => 'JOHN DOE', 'account_number' => '0123456789']
   // Throws on invalid account.
-  // ============================================================
   public function resolveAccountNumber(string $accountNumber, string $bankCode): array
   {
     $response = $this->makeRequest(
@@ -66,11 +60,9 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Get list of supported banks
   // Frontend uses this to populate the bank dropdown.
   // Returns array of ['name' => 'GTBank', 'code' => '058', ...]
-  // ============================================================
   public function getBanks(): array
   {
     $response = $this->makeRequest('GET', '/bank?currency=NGN&per_page=100');
@@ -82,7 +74,6 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Create a Paystack subaccount for an organizer
   // Called automatically when organizer saves their bank details.
   //
@@ -93,7 +84,6 @@ class PaystackService
   //
   // Returns full subaccount data including 'subaccount_code'
   // which you store in organizer_payment_details.
-  // ============================================================
   public function createSubaccount(
     string $businessName,
     string $settlementBank,
@@ -117,11 +107,9 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Update an existing Paystack subaccount
   // Called when organizer updates their bank details.
   // $subaccountCode — stored in organizer_payment_details
-  // ============================================================
   public function updateSubaccount(
     string $subaccountCode,
     string $businessName,
@@ -145,14 +133,12 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Create a transfer recipient
   // Paystack requires a recipient object before you can transfer.
   // This wraps the bank details into a reusable recipient_code.
   //
   // Returns recipient_code — store this in organizer_payment_details
   // for use in initiateTransfer().
-  // ============================================================
   public function createTransferRecipient(
     string $accountName,
     string $accountNumber,
@@ -175,7 +161,6 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Initiate a Transfer (payout to organizer)
   // $amount         — amount in naira (converted to kobo internally)
   // $recipientCode  — from createTransferRecipient()
@@ -183,7 +168,6 @@ class PaystackService
   // $reason         — shown on organizer's bank statement
   //
   // Returns transfer data including 'transfer_code'
-  // ============================================================
   public function initiateTransfer(
     float  $amount,
     string $recipientCode,
@@ -207,11 +191,9 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Verify a Transfer status
   // Call this to confirm a transfer actually completed.
   // $transferCode — returned by initiateTransfer()
-  // ============================================================
   public function verifyTransfer(string $transferCode): array
   {
     $response = $this->makeRequest('GET', "/transfer/{$transferCode}");
@@ -223,12 +205,10 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // NEW — Refund a transaction
   // Called when an event is cancelled and attendees need refunds.
   // $transactionRef — the original Paystack payment reference
   // $amount         — amount to refund in naira (NULL = full refund)
-  // ============================================================
   public function refundTransaction(string $transactionRef, ?float $amount = null): array
   {
     $payload = ['transaction' => $transactionRef];
@@ -246,9 +226,7 @@ class PaystackService
     return $response['data'];
   }
 
-  // ============================================================
   // PRIVATE — core HTTP request handler (unchanged from original)
-  // ============================================================
   private function makeRequest(string $method, string $endpoint, ?string $body = null): array
   {
     $curl = curl_init();

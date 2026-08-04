@@ -11,11 +11,9 @@ class DevController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/dev/overview
   // Dev only — full platform overview including hidden data
   // Admins get 404 on all /api/dev/* routes
-  // ============================================================
   public function overview(): void
   {
     // Everything admins see in stats — plus the hidden stuff
@@ -82,10 +80,8 @@ class DevController
     ]);
   }
 
-  // ============================================================
   // GET /api/dev/users
   // Dev only — ALL users including dev accounts
-  // ============================================================
   public function users(): void
   {
     $stmt = $this->db->prepare("
@@ -104,10 +100,8 @@ class DevController
     Response::success(['users' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // GET /api/dev/logs
   // Dev only — view API request logs
-  // ============================================================
   public function logs(): void
   {
     $page   = max(1, (int) $this->request->query('page', '1'));
@@ -174,10 +168,8 @@ class DevController
     ]);
   }
 
-  // ============================================================
   // GET /api/dev/logs/:id
   // Dev only — view a single log entry including request payload
-  // ============================================================
   public function showLog(array $params): void
   {
     $logId = (int) $params['id'];
@@ -203,10 +195,8 @@ class DevController
     Response::success(['log' => $log]);
   }
 
-  // ============================================================
   // DELETE /api/dev/logs
   // Dev only — clear all logs
-  // ============================================================
   public function clearLogs(): void
   {
     $this->db->prepare('DELETE FROM dev_logs')->execute();
@@ -215,11 +205,9 @@ class DevController
     Response::success(null, 'All logs cleared.');
   }
 
-  // ============================================================
   // POST /api/dev/users/:id/role
   // Dev only — can assign ANY role including dev
   // This is the only place the dev role can be assigned
-  // ============================================================
   public function forceRole(array $params): void
   {
     $targetId = (int) $params['id'];
@@ -243,11 +231,9 @@ class DevController
     Response::success(null, "Role for '{$user['name']}' forced to '{$newRole}'.");
   }
 
-  // ============================================================
   // GET /api/dev/bookings/failed
   // Dev only — view all failed and pending payments
   // Useful for debugging payment issues
-  // ============================================================
   public function failedBookings(): void
   {
     $stmt = $this->db->prepare("
@@ -273,7 +259,6 @@ class DevController
     Response::success(['bookings' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // POST /api/dev/bookings/:id/force-pay
   //
   // FIX #1: Removed the two manual UPDATE statements that were
@@ -281,7 +266,6 @@ class DevController
   // The trg_booking_paid trigger handles quantity_sold automatically
   // when payment_status flips to 'paid'. events.tickets_sold no
   // longer exists — use v_event_sales view instead.
-  // ============================================================
   public function forcePay(array $params): void
   {
     $bookingId = (int) $params['id'];

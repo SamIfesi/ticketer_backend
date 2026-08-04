@@ -11,12 +11,10 @@ class BookingController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // POST /api/bookings
   // Protected: attendee or dev
   // Step 1 of payment flow — creates a pending booking
   // and returns Paystack payment details to React
-  // ============================================================
   public function store(): void
   {
     $userId       = $this->request->user['id'];
@@ -330,14 +328,12 @@ class BookingController
     }
   }
 
-  // ============================================================
   // POST /api/bookings/verify
   // Protected: attendee or dev
   // Step 2 — verifies Paystack payment and issues tickets.
   //
   // quantity_sold is handled by trg_booking_paid trigger which
   // fires automatically when payment_status is updated to 'paid'
-  // ============================================================
   public function verify(): void
   {
     $reference = trim($this->request->input('reference', ''));
@@ -588,9 +584,7 @@ class BookingController
     }
   }
 
-  // ============================================================
   // GET /api/bookings/mine
-  // ============================================================
   public function myBookings(): void
   {
     $userId = $this->request->user['id'];
@@ -624,9 +618,7 @@ class BookingController
     Response::success(['bookings' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // GET /api/bookings/:id
-  // ============================================================
   public function show(array $params): void
   {
     $bookingId = (int) $params['id'];
@@ -679,9 +671,7 @@ class BookingController
     Response::success(['booking' => $booking]);
   }
 
-  // ============================================================
   // GET /api/organizer/events/:id/bookings
-  // ============================================================
   public function eventBookings(array $params): void
   {
     $eventId = (int) $params['id'];

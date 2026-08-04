@@ -26,11 +26,9 @@ class PayoutController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/admin/payouts
   // All payouts platform-wide.
   // Optional ?status= filter (pending/processing/paid/failed/frozen/cancelled)
-  // ============================================================
   public function index(): void
   {
     $page   = max(1, (int) $this->request->query('page', '1'));
@@ -85,12 +83,10 @@ class PayoutController
     ]);
   }
 
-  // ============================================================
   // GET /api/admin/payouts/pending
   // Events that have ended, hold period has passed,
   // but payout has not been sent yet.
   // This is the admin's action queue — press trigger on each one.
-  // ============================================================
   public function pending(): void
   {
     $stmt = $this->db->prepare("
@@ -123,12 +119,10 @@ class PayoutController
     Response::success(['payouts' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // POST /api/admin/payouts/:eventId/trigger
   // Manually trigger a payout for a specific event.
   // Used when admin verifies the event happened successfully.
   // PayoutService handles all the Paystack Transfer logic.
-  // ============================================================
   public function trigger(array $params): void
   {
     $eventId = (int) $params['eventId'];
@@ -147,12 +141,10 @@ class PayoutController
     ], $result['message']);
   }
 
-  // ============================================================
   // POST /api/admin/payouts/:eventId/freeze
   // Freeze a payout — stops the auto worker from paying it out.
   // Use when an attendee reports a scam or dispute.
   // Body: { reason }  — required
-  // ============================================================
   public function freeze(array $params): void
   {
     $eventId = (int) $params['eventId'];
@@ -172,12 +164,10 @@ class PayoutController
     Response::success(null, $result['message']);
   }
 
-  // ============================================================
   // POST /api/admin/payouts/:eventId/unfreeze
   // Unfreeze a payout after review.
   // The payout goes back to 'pending' and the
   // auto worker will pick it up on the next run.
-  // ============================================================
   public function unfreeze(array $params): void
   {
     $eventId = (int) $params['eventId'];
@@ -190,7 +180,6 @@ class PayoutController
     Response::success(null, $result['message']);
   }
 
-  // ============================================================
   // POST /api/admin/payouts/:eventId/refund-all
   // Refund every paid attendee for a cancelled event.
   // - Calls Paystack refund API for each booking
@@ -199,7 +188,6 @@ class PayoutController
   // - Notifies each attendee
   // - Cancels the organizer payout (they get nothing)
   // Body: { reason }  — optional note shown in audit log
-  // ============================================================
   public function refundAll(array $params): void
   {
     $eventId = (int) $params['eventId'];
@@ -278,12 +266,10 @@ class PayoutController
     ], "{$succeeded} refund(s) processed. {$failed} failed.");
   }
 
-  // ============================================================
   // POST /api/admin/organizers/:id/clear-flag
   // Clear an organizer's flag and reset their strike count to 0.
   // Use after reviewing the organizer's cancellation history
   // and deciding to give them another chance.
-  // ============================================================
   public function clearFlag(array $params): void
   {
     $organizerId = (int) $params['id'];

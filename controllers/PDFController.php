@@ -34,14 +34,12 @@ class TicketPDFController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/tickets/:id/download
   //
   // Streams ONE ticket's PDF directly. Generates on first
   // request (which also warms every other ticket under the same
   // booking, since PDFService::generateTickets() processes the
   // whole booking in one pass), cached on subsequent calls.
-  // ============================================================
   public function downloadSingle(array $params): void
   {
     $ticketId = (int) $params['id'];
@@ -69,9 +67,7 @@ class TicketPDFController
     $this->serveSinglePdf($ticketId, (int) $ticket['booking_id']);
   }
 
-  // ============================================================
   // GET /api/tickets/:id/download/png
-  // ============================================================
   public function downloadSinglePng(array $params): void
   {
     $ticketId = (int) $params['id'];
@@ -99,12 +95,10 @@ class TicketPDFController
     $this->serveSinglePng($ticketId, (int) $ticket['booking_id']);
   }
 
-  // ============================================================
   // GET /api/admin/tickets/:id/download
   //
   // Admin downloads any ticket's PDF directly. Same logic as
   // downloadSingle() but no ownership check.
-  // ============================================================
   public function adminDownloadSingle(array $params): void
   {
     $ticketId = (int) $params['id'];
@@ -122,9 +116,7 @@ class TicketPDFController
     $this->serveSinglePdf($ticketId, (int) $ticket['booking_id']);
   }
 
-  // ============================================================
   // GET /api/admin/tickets/:id/download/png
-  // ============================================================
   public function adminDownloadSinglePng(array $params): void
   {
     $ticketId = (int) $params['id'];
@@ -142,13 +134,11 @@ class TicketPDFController
     $this->serveSinglePng($ticketId, (int) $ticket['booking_id']);
   }
 
-  // ============================================================
   // POST /api/bookings/:id/ticket/regenerate
   //
   // Force-regenerates every ticket file (PDF + PNG) under a
   // booking. Useful after admin edits or when cached files are
   // stale. Admin / Dev only.
-  // ============================================================
   public function regenerate(array $params): void
   {
     $bookingId = (int) $params['id'];
@@ -181,7 +171,6 @@ class TicketPDFController
     }
   }
 
-  // ============================================================
   // GET /api/bookings/:id/ticket/status
   //
   // Check whether ticket files (PDF + PNG) have been generated
@@ -190,7 +179,6 @@ class TicketPDFController
   // to download.
   //
   // Accessible to booking owner, event organizer, admin, dev.
-  // ============================================================
   public function status(array $params): void
   {
     $bookingId = (int) $params['id'];
@@ -237,9 +225,7 @@ class TicketPDFController
     ]);
   }
 
-  // ============================================================
   // PRIVATE HELPERS
-  // ============================================================
 
   private function serveSinglePdf(int $ticketId, int $bookingId): void
   {

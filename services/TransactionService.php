@@ -12,9 +12,7 @@ class TransactionService
     return self::$db;
   }
 
-  // ============================================================
   // Core append — NEVER update or delete from transaction_logs
-  // ============================================================
   public static function log(
     int    $bookingId,
     int    $userId,
@@ -62,10 +60,8 @@ class TransactionService
     }
   }
 
-  // ============================================================
   // Payment initiated — booking created, awaiting payment
   // amount = 0 (no money moved yet)
-  // ============================================================
   public static function paymentInitiated(array $booking, int $organizerId): void
   {
     self::log(
@@ -86,10 +82,8 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Payment confirmed — money received, tickets issued
   // Includes calculated platform fee and organizer cut
-  // ============================================================
   public static function paymentConfirmed(
     array  $booking,
     float  $platformFee,
@@ -117,9 +111,7 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Payment failed
-  // ============================================================
   public static function paymentFailed(array $booking, string $reason = ''): void
   {
     self::log(
@@ -141,9 +133,7 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Refund processed — amount is negative (money going back)
-  // ============================================================
   public static function refundProcessed(
     array  $booking,
     int    $performedBy,
@@ -168,9 +158,7 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Payout sent — organizer paid after event
-  // ============================================================
   public static function payoutSent(
     int    $eventId,
     int    $organizerId,
@@ -201,9 +189,7 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Payout failed
-  // ============================================================
   public static function payoutFailed(
     int    $eventId,
     int    $organizerId,
@@ -224,9 +210,7 @@ class TransactionService
     );
   }
 
-  // ============================================================
   // Force pay (dev tool)
-  // ============================================================
   public static function forcedPayment(array $booking, int $devUserId): void
   {
     self::log(

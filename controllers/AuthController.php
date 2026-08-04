@@ -11,9 +11,7 @@ class AuthController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // POST /api/auth/register
-  // ============================================================
   public function register(): void
   {
     $name     = trim($this->request->input('name', ''));
@@ -83,10 +81,8 @@ class AuthController
     ], 'Account created successfully.', 201);
   }
 
-  // ============================================================
   // POST /api/auth/verify-email
   // Protected: logged in
-  // ============================================================
   public function verifyEmail(): void
   {
     $userId = $this->request->user['id'];
@@ -124,10 +120,8 @@ class AuthController
     Response::success(null, 'Email verified successfully.');
   }
 
-  // ============================================================
   // POST /api/auth/resend-otp
   // Protected: logged in
-  // ============================================================
   public function resendOTP(): void
   {
     $userId = $this->request->user['id'];
@@ -161,9 +155,7 @@ class AuthController
     Response::success(null, 'A new OTP has been sent to your email.');
   }
 
-  // ============================================================
   // POST /api/auth/login
-  // ============================================================
   public function login(): void
   {
     $email    = trim($this->request->input('email', ''));
@@ -206,20 +198,16 @@ class AuthController
     ], 'Logged in successfully.');
   }
 
-  // ============================================================
   // POST /api/auth/logout
   // Protected: logged in
-  // ============================================================
   public function logout(): void
   {
     $this->logActivity($this->request->user['id'], 'logout', 'Logged out');
     Response::success(null, 'Logged out successfully.');
   }
 
-  // ============================================================
   // GET /api/auth/me
   // Protected: logged in
-  // ============================================================
   public function me(): void
   {
     $userId = $this->request->user['id'];
@@ -239,9 +227,7 @@ class AuthController
   }
 
   // START OF FORGOTTON PASSWORD
-  // ============================================================
   // POST /api/auth/forgotPasswordOtp
-  // ============================================================
   public function forgotPasswordOtp(): void
   {
     $email = trim($this->request->input('email', ''));
@@ -280,9 +266,7 @@ class AuthController
     Response::success(['message_hint' => "A 6-digit verification code has been sent to {$email}"], 'OTP sent successfully.', 201);
   }
 
-  // ============================================================
   // POST /api/auth/verifyForgottenPasswordOtp
-  // ============================================================
   public function verifyForgottenPasswordOtp(): void
   {
     $email = trim($this->request->input('email', ''));
@@ -327,9 +311,7 @@ class AuthController
     Response::success(['reset_token' => $resetToken], 'OTP verified successfully.');
   }
 
-  // ============================================================
   // POST /api/auth/resetPassword
-  // ============================================================
   public function resetPassword(): void
   {
     $resetToken       = trim($this->request->input('reset_token', ''));
@@ -386,9 +368,7 @@ class AuthController
   // END OF FORGOTTON PASSWORD
 
 
-  // ============================================================
   // PRIVATE HELPERS
-  // ============================================================
 
   private function generateOTP(): string
   {

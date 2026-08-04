@@ -22,10 +22,8 @@ class PayoutService
     return self::$db;
   }
 
-  // ============================================================
   // Calculate the split for a given amount and fee percentage
   // Returns ['platform_fee' => X, 'organizer_amount' => Y]
-  // ============================================================
   public static function calculateSplit(float $grossAmount, float $feePercentage): array
   {
     $platformFee     = round($grossAmount * ($feePercentage / 100), 2);
@@ -37,10 +35,8 @@ class PayoutService
     ];
   }
 
-  // ============================================================
   // Get the effective fee percentage for a booking
   // Priority: event-level override → organizer default
-  // ============================================================
   public static function getFeePercentage(int $eventId, int $organizerId): float
   {
     // Check if event has its own override
@@ -67,11 +63,9 @@ class PayoutService
     return 10.00;
   }
 
-  // ============================================================
   // Create or update the event_payouts row when a booking is paid
   // Called from BookingController::verify() after every confirmed payment
   // Accumulates gross_revenue across multiple bookings for same event
-  // ============================================================
   public static function accumulateRevenue(
     int   $eventId,
     int   $organizerId,
@@ -116,10 +110,8 @@ class PayoutService
     ]);
   }
 
-  // ============================================================
   // Recalculate hold_until when event end_date is set/updated
   // Called from EventController when event is completed/ends
-  // ============================================================
   public static function setHoldUntil(int $eventId, string $eventEndDate): void
   {
     // Use string interpolation properly for constants
@@ -134,11 +126,9 @@ class PayoutService
         ")->execute([$holdUntil, $eventId]);
   }
 
-  // ============================================================
   // Trigger a payout transfer to the organizer
   // Called by payout_worker.php (auto) or PayoutController (manual)
   // $triggeredBy = null for auto worker, user_id for manual
-  // ============================================================
   public static function triggerPayout(int $eventId, ?int $triggeredBy = null): array
   {
     $db = self::db();
@@ -275,9 +265,7 @@ class PayoutService
     }
   }
 
-  // ============================================================
   // Freeze a payout (admin action — dispute or fraud report)
-  // ============================================================
   public static function freezePayout(int $eventId, int $adminId, string $reason): array
   {
     $stmt = self::db()->prepare("SELECT payout_status FROM event_payouts WHERE event_id = ?");
@@ -323,9 +311,7 @@ class PayoutService
     return ['success' => true, 'message' => 'Payout frozen successfully.'];
   }
 
-  // ============================================================
   // Unfreeze a payout (admin action)
-  // ============================================================
   public static function unfreezePayout(int $eventId): array
   {
     $stmt = self::db()->prepare("SELECT payout_status FROM event_payouts WHERE event_id = ?");
@@ -349,9 +335,7 @@ class PayoutService
     return ['success' => true, 'message' => 'Payout unfrozen. It will process in the next worker run.'];
   }
 
-  // ============================================================
   // Cancel a payout (when event is cancelled — no money to organizer)
-  // ============================================================
   public static function cancelPayout(int $eventId): void
   {
     self::db()->prepare("
@@ -366,11 +350,9 @@ class PayoutService
         ")->execute([$eventId]);
   }
 
-  // ============================================================
   // Strike system — increment cancellation count
   // Called from EventController when organizer cancels an event
   // Returns true if organizer just got flagged
-  // ============================================================
   public static function recordCancellation(int $organizerId): bool
   {
     $db = self::db();
@@ -420,9 +402,7 @@ class PayoutService
     return false;
   }
 
-  // ============================================================
   // Admin clears organizer flag
-  // ============================================================
   public static function clearFlag(int $organizerId, int $adminId): void
   {
     self::db()->prepare("
@@ -449,9 +429,7 @@ class PayoutService
     }
   }
 
-  // ============================================================
   // Notify all admins (used for payout failures and flag events)
-  // ============================================================
   private static function notifyAllAdmins(
     int    $eventId,
     string $eventTitle,

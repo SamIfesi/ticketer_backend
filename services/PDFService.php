@@ -175,11 +175,9 @@ class PDFService
     return $filePaths;
   }
 
-  // ============================================================
   // SINGLE-TICKET LOOKUPS
   // These are what the controller uses for per-ticket downloads.
   // No booking-level bundling anywhere below this line.
-  // ============================================================
 
   public static function singleTicketExists(int $ticketId): bool
   {
@@ -215,12 +213,10 @@ class PDFService
     return "{$appUrl}/storage/tickets/ticket_{$ticketId}.png";
   }
 
-  // ============================================================
   // BOOKING-LEVEL HELPERS
   // Used by status()/regenerate() which still operate across a
   // whole booking's set of tickets, even though downloads
   // themselves are always single-file.
-  // ============================================================
 
   // Check if ALL ticket PDFs under a booking have been generated.
   public static function ticketExists(int $bookingId): bool

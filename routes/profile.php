@@ -1,9 +1,7 @@
 <?php
 
-// ============================================================
 // PROFILE ROUTES
 // All protected: must be logged in
-// ============================================================
 
 // View and update profile
 $router->get('/api/profile',                      [ProfileController::class, 'show'],               [AuthMiddleware::class]);

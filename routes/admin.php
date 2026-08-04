@@ -1,9 +1,7 @@
 <?php
 
-// ============================================================
 // ADMIN ROUTES
 // All protected: admin or dev only
-// ============================================================
 
 // Platform stats
 $router->get('/api/admin/stats', [AdminController::class, 'stats'], [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev']]);

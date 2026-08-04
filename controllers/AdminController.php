@@ -11,9 +11,7 @@ class AdminController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/admin/users
-  // ============================================================
   public function users(): void
   {
     $page   = max(1, (int) $this->request->query('page', '1'));
@@ -72,12 +70,10 @@ class AdminController
     ]);
   }
 
-  // ============================================================
   // GET /api/admin/users/:id
   //
   // FIX #2: organizer_summary no longer reads events.tickets_sold.
   // Uses v_event_sales view to get accurate live totals.
-  // ============================================================
   public function showUser(array $params): void
   {
     $userId = (int) $params['id'];
@@ -125,9 +121,7 @@ class AdminController
     Response::success(['user' => $user]);
   }
 
-  // ============================================================
   // PUT /api/admin/users/:id/role
-  // ============================================================
   public function updateRole(array $params): void
   {
     $targetId = (int) $params['id'];
@@ -160,9 +154,7 @@ class AdminController
     Response::success(null, "User role updated to '{$newRole}' successfully.");
   }
 
-  // ============================================================
   // PUT /api/admin/users/:id/status
-  // ============================================================
   public function updateStatus(array $params): void
   {
     $targetId = (int) $params['id'];
@@ -190,13 +182,11 @@ class AdminController
     Response::success(null, $isActive ? 'User account activated.' : 'User account deactivated.');
   }
 
-  // ============================================================
   // GET /api/admin/events
   //
   // FIX #3: Replaced e.tickets_sold column (removed in v2 schema)
   // with a LEFT JOIN on v_event_sales to get live accurate counts.
   // Also filters out soft-deleted events by default.
-  // ============================================================
   public function events(): void
   {
     $page          = max(1, (int) $this->request->query('page', '1'));
@@ -265,13 +255,11 @@ class AdminController
     ]);
   }
 
-  // ============================================================
   // PUT /api/admin/events/:id/status
   //
   // FIX #5: Added EVENT_DELETED to valid statuses.
   // When admin sets status to 'deleted', also stamps deleted_at
   // so the soft-delete trigger fires and logs to activity_logs.
-  // ============================================================
   public function updateEventStatus(array $params): void
   {
     $eventId   = (int) $params['id'];
@@ -329,14 +317,12 @@ class AdminController
     Response::success(null, "Event status updated to '{$newStatus}'.");
   }
 
-  // ============================================================
   // GET /api/admin/stats
   //
   // FIX #3: Removed SUM(tickets_sold) from events query.
   // Ticket counts now come from bookings directly (already correct here).
   // Added deleted event count.
   // FIX #6: bookings stats filter deleted_at IS NULL.
-  // ============================================================
   public function stats(): void
   {
     // Users

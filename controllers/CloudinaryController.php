@@ -26,7 +26,6 @@ class CloudinaryController
         $this->db      = Database::connect();
     }
 
-    // ============================================================
     // POST /api/cloudinary/sign
     // Protected: logged in
     //
@@ -34,7 +33,6 @@ class CloudinaryController
     //
     // Returns signed params React needs to upload directly to Cloudinary.
     // The signature expires after ~1 minute (Cloudinary enforces this).
-    // ============================================================
     public function sign(): void
     {
         $type = trim($this->request->input('type', ''));
@@ -64,14 +62,12 @@ class CloudinaryController
         Response::success($params, 'Upload signature generated.');
     }
 
-    // ============================================================
     // POST /api/cloudinary/avatar
     // Protected: logged in
     //
     // Body: { public_id, secure_url }
     //
     // Saves the new avatar and deletes the old one from Cloudinary.
-    // ============================================================
     public function saveAvatar(): void
     {
         $userId    = $this->request->user['id'];
@@ -118,14 +114,12 @@ class CloudinaryController
         Response::success(['user' => $stmt->fetch()], 'Avatar updated successfully.');
     }
 
-    // ============================================================
     // POST /api/cloudinary/banner/:id
     // Protected: organizer (own events) | admin | dev
     //
     // Body: { public_id, secure_url }
     //
     // Saves the new banner and deletes the old one from Cloudinary.
-    // ============================================================
     public function saveBanner(array $params): void
     {
         $eventId   = (int) $params['id'];

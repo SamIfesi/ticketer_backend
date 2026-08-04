@@ -28,12 +28,10 @@ $db = Database::connect();
 
 echo "[" . date('Y-m-d H:i:s') . "] Event reminder worker started.\n";
 
-// ============================================================
 // Find published events starting 47-49 hours from now
 // (a 2-hour window so a once-daily cron run doesn't miss
 // events that fall just outside a tighter window), that
 // haven't been reminded yet.
-// ============================================================
 $stmt = $db->prepare("
     SELECT id, title, slug, location, start_date
     FROM events

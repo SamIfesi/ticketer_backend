@@ -11,10 +11,8 @@ class CategoryController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/categories
   // Public — anyone can see categories
-  // ============================================================
   public function index(): void
   {
     $stmt = $this->db->prepare("
@@ -37,13 +35,11 @@ class CategoryController
     Response::success(['categories' => $stmt->fetchAll()]);
   }
 
-  // ============================================================
   // GET /api/categories/:id
   //
   // FIX #3: Replaced e.tickets_sold (removed column) with a
   // LEFT JOIN on v_event_sales for live accurate counts.
   // Also filters soft-deleted events.
-  // ============================================================
   public function show(array $params): void
   {
     $categoryId = (int) $params['id'];
@@ -84,10 +80,8 @@ class CategoryController
     Response::success(['category' => $category]);
   }
 
-  // ============================================================
   // POST /api/categories
   // Protected: admin or dev only
-  // ============================================================
   public function store(): void
   {
     $name = trim($this->request->input('name', ''));
@@ -125,10 +119,8 @@ class CategoryController
     Response::success(['category' => $stmt->fetch()], 'Category created successfully.', 201);
   }
 
-  // ============================================================
   // PUT /api/categories/:id
   // Protected: admin or dev only
-  // ============================================================
   public function update(array $params): void
   {
     $categoryId = (int) $params['id'];
@@ -157,11 +149,9 @@ class CategoryController
     Response::success(['category' => $stmt->fetch()], 'Category updated successfully.');
   }
 
-  // ============================================================
   // DELETE /api/categories/:id
   // Protected: admin or dev only
   // Only deletes if no events are linked to this category
-  // ============================================================
   public function destroy(array $params): void
   {
     $categoryId = (int) $params['id'];
@@ -190,9 +180,7 @@ class CategoryController
     Response::success(null, 'Category deleted successfully.');
   }
 
-  // ============================================================
   // PRIVATE HELPERS
-  // ============================================================
   private function generateSlug(string $name): string
   {
     $slug = strtolower(trim($name));

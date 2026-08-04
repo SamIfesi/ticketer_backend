@@ -11,7 +11,6 @@ class TicketController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/tickets/:id
   // Protected: ticket owner or event organizer or dev
   // Returns ticket details + QR code URL
@@ -19,7 +18,6 @@ class TicketController
   // NEW: for multi_day events, also returns days_used/total_days
   // so the attendee's ticket page can show "2/3 days used"
   // instead of a status that never changes from "valid".
-  // ============================================================
   public function show(array $params): void
   {
     $ticketId = (int) $params['id'];
@@ -110,7 +108,6 @@ class TicketController
     Response::success(['ticket' => $ticket]);
   }
 
-  // ============================================================
   // GET /api/tickets/booking/:bookingId
   // Protected: booking owner or dev
   // Returns ALL tickets under one booking
@@ -119,7 +116,6 @@ class TicketController
   // NEW: same days_used/total_days addition as show() above,
   // resolved once per booking rather than once per ticket since
   // every ticket under a booking shares the same event.
-  // ============================================================
   public function byBooking(array $params): void
   {
     $bookingId = (int) $params['bookingId'];
@@ -215,7 +211,6 @@ class TicketController
     Response::success(['tickets' => $tickets]);
   }
 
-  // ============================================================
   // POST /api/tickets/checkin
   // Protected: organizer or dev only
   // Called when organizer scans a QR code at the gate
@@ -439,7 +434,6 @@ class TicketController
       ], "Day {$dayNumber}/{$totalDays} checked in successfully.");
   }
 
-  // ============================================================
   // GET /api/organizer/events/:id/checkins
   // Protected: organizer or dev
   // Returns all tickets + check-in status for an event
@@ -451,7 +445,6 @@ class TicketController
   //     that specific day via EXISTS against ticket_checkins, PLUS
   //     a days_used/total_days count per ticket so the frontend can
   //     render "2/3" regardless of which day tab is being viewed.
-  // ============================================================
   public function checkinList(array $params): void
   {
     $eventId = (int) $params['id'];

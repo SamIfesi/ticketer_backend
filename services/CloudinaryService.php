@@ -26,7 +26,6 @@ class CloudinaryService
   const FOLDER_BANNERS = 'ticketer/banners';
   const FOLDER_AVATARS = 'ticketer/avatars';
 
-  // ==========================================================
   // Generate signed upload parameters
   //
   // React sends these as extra POST fields alongside the file.
@@ -36,7 +35,6 @@ class CloudinaryService
   // $folder — one of the FOLDER_* constants above
   //
   // Returns array ready to JSON-encode back to React.
-  // ==========================================================
   public static function signUpload(string $preset, string $folder): array
   {
     $apiSecret  = Environment::get('CLOUDINARY_API_SECRET');
@@ -72,14 +70,12 @@ class CloudinaryService
     ];
   }
 
-  // ==========================================================
   // Delete an image from Cloudinary by its public_id
   //
   // Call this whenever a user replaces their avatar or an
   // organizer replaces a banner — keeps your storage clean.
   //
   // Returns true on success, false on failure (non-fatal).
-  // ==========================================================
   public static function delete(string $publicId): bool
   {
     if (empty($publicId)) return false;
@@ -117,14 +113,12 @@ class CloudinaryService
     return isset($decoded['result']) && $decoded['result'] === 'ok';
   }
 
-  // ==========================================================
   // Build an optimized Cloudinary delivery URL
   //
   // Use these helpers everywhere you render an <img> so you
   // always get WebP, right size, auto quality — no work on React side.
   //
   // $publicId — the public_id returned by Cloudinary after upload
-  // ==========================================================
 
   // Avatar: square, face-centred crop, WebP, auto quality
   public static function avatarUrl(string $publicId, int $size = 200): string
@@ -157,11 +151,9 @@ class CloudinaryService
     return "{$base}/{$publicId}";
   }
 
-  // ==========================================================
   // Extract public_id from a full Cloudinary secure_url
   //
   // Useful when you only stored the URL and need to delete it.
-  // ==========================================================
   public static function publicIdFromUrl(string $url): string
   {
     // e.g. https://res.cloudinary.com/mycloud/image/upload/v1234/ticketer/avatars/abc123.jpg

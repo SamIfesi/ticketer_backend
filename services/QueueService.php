@@ -12,7 +12,6 @@ class QueueService
     return self::$db;
   }
 
-  // ============================================================
   // Core push — all helpers call this.
   //
   // $queue: 'email' | 'pdf'
@@ -26,7 +25,6 @@ class QueueService
   //       'otp'   => '123456',
   //       'type'  => 'register',
   //   ]);
-  // ============================================================
   public static function push(
     string $type,
     array  $payload,
@@ -51,9 +49,7 @@ class QueueService
     }
   }
 
-  // ============================================================
   // EMAIL JOBS  →  queue: 'email'
-  // ============================================================
 
   public static function sendOTP(string $email, string $name, string $otp, string $type): void
   {
@@ -134,9 +130,7 @@ class QueueService
     ], 0, 'email');
   }
 
-  // ============================================================
   // PDF JOBS  →  queue: 'pdf'
-  // ============================================================
 
   /**
    * Queue a ticket PDF generation for a single paid booking.

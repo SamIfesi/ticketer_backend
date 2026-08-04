@@ -22,11 +22,9 @@ class OrganizerPaymentController
     $this->db      = Database::connect();
   }
 
-  // ============================================================
   // GET /api/organizer/payment-details
   // Returns the organizer's saved bank details.
   // account_number is partially masked for security.
-  // ============================================================
   public function show(): void
   {
     $userId = $this->request->user['id'];
@@ -47,12 +45,10 @@ class OrganizerPaymentController
     Response::success(['payment_details' => $details ?: null]);
   }
 
-  // ============================================================
   // POST /api/organizer/resolve-account
   // Frontend calls this BEFORE saving to show the account name.
   // Body: { account_number, bank_code }
   // Returns: { account_name, account_number }
-  // ============================================================
   public function resolveAccount(): void
   {
     $accountNumber = trim($this->request->input('account_number', ''));
@@ -83,11 +79,9 @@ class OrganizerPaymentController
     }
   }
 
-  // ============================================================
   // GET /api/organizer/banks
   // Returns Paystack's list of supported banks.
   // Frontend uses this to populate the bank dropdown.
-  // ============================================================
   public function getBanks(): void
   {
     try {
@@ -106,7 +100,6 @@ class OrganizerPaymentController
     }
   }
 
-  // ============================================================
   // POST /api/organizer/payment-details
   // Save bank details for the first time.
   // Automatically:
@@ -115,7 +108,6 @@ class OrganizerPaymentController
   //   3. Creates a Paystack subaccount
   //   4. Saves everything to organizer_payment_details
   // Body: { bank_name, bank_code, account_number, platform_fee_percentage }
-  // ============================================================
   public function store(): void
   {
     $userId = $this->request->user['id'];
@@ -217,11 +209,9 @@ class OrganizerPaymentController
     }
   }
 
-  // ============================================================
   // PUT /api/organizer/payment-details
   // Update existing bank details.
   // Re-verifies account and updates the Paystack subaccount.
-  // ============================================================
   public function update(): void
   {
     $userId = $this->request->user['id'];
@@ -297,10 +287,8 @@ class OrganizerPaymentController
     }
   }
 
-  // ============================================================
   // GET /api/organizer/payouts
   // Organizer's own payout history
-  // ============================================================
   public function myPayouts(): void
   {
     $userId = $this->request->user['id'];

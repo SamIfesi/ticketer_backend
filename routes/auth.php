@@ -1,9 +1,6 @@
 <?php
 
-// ============================================================
 // AUTH ROUTES
-// ============================================================
-
 // Public routes
 $router->post('/api/auth/callback/google', [GoogleAuthController::class, 'googleLogin']);
 $router->post('/api/auth/register', [AuthController::class, 'register']);
