@@ -22,3 +22,5 @@ public/assets/tailwind.css
 worker.php
 *.dump
 database/*.dump
+*.log
+docker/*.log
