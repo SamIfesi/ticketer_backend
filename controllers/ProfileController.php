@@ -330,6 +330,7 @@ class ProfileController
     $stmt = $this->db->prepare("
             SELECT
                 b.id,
+              b.booking_number,
                 b.quantity,
                 b.total_amount,
                 b.payment_status,
@@ -387,6 +388,7 @@ class ProfileController
     $stmt = $this->db->prepare("
             SELECT
                 t.id,
+              t.ticket_number,
                 t.qr_token,
                 t.booking_id,
                 t.is_used,
