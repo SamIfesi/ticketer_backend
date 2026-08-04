@@ -253,6 +253,7 @@ class DevController
     $stmt = $this->db->prepare("
             SELECT
                 b.id,
+              b.booking_number,
                 b.paystack_reference,
                 b.total_amount,
                 b.payment_status,
@@ -286,7 +287,7 @@ class DevController
     $bookingId = (int) $params['id'];
 
     $stmt = $this->db->prepare("
-            SELECT b.*, e.title AS event_title,
+                 SELECT b.*, b.booking_number, e.title AS event_title,
                    u.name AS user_name, u.email AS user_email,
                    tt.name AS ticket_type_name,
                    e.location AS event_location, e.start_date AS event_start_date

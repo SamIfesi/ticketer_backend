@@ -326,7 +326,9 @@ class TicketPDFController
                 t.id,
                 t.user_id,
                 t.booking_id,
+              t.ticket_number,
                 b.payment_status,
+              b.booking_number,
                 e.organizer_id
             FROM tickets t
             JOIN bookings b ON b.id = t.booking_id
@@ -351,6 +353,7 @@ class TicketPDFController
             SELECT
                 b.id,
                 b.user_id,
+              b.booking_number,
                 b.payment_status,
                 e.organizer_id
             FROM bookings b

@@ -636,6 +636,7 @@ class BookingController
     $stmt = $this->db->prepare("
             SELECT
                 b.*,
+              b.booking_number,
                 e.title        AS event_title,
                 e.location     AS event_location,
                 e.start_date   AS event_start_date,
