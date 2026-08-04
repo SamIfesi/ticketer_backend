@@ -108,6 +108,24 @@ class QueueService
     ], 0, 'email');
   }
 
+  public static function sendEventReminder(
+    string $email,
+    string $name,
+    string $eventTitle,
+    string $eventDate,
+    string $eventLocation,
+    string $pageUrl
+  ): void {
+    self::push('send_event_reminder', [
+      'email'          => $email,
+      'name'           => $name,
+      'event_title'    => $eventTitle,
+      'event_date'     => $eventDate,
+      'event_location' => $eventLocation,
+      'page_url'       => $pageUrl,
+    ], 0, 'email');
+  }
+
   public static function sendPasswordChanged(string $email, string $name): void
   {
     self::push('send_password_changed', [
