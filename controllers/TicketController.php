@@ -236,11 +236,11 @@ class TicketController
   //   - require event id to verify the event 
   public function checkin(): void
   {
-    $qrToken = trim($this->request->input('qr_token', ''));
-    $dayInput = $this->request->input('day_number', null); // organizer-picked, optional
-    $eventId = (int) $this->request->input('event_id', 0);
-    $userId  = $this->request->user['id'];
-    $role    = $this->request->user['role'];
+    $qrToken  = trim($this->request->input('qr_token', ''));
+    $dayInput = $this->request->input('day_number', null);
+    $eventId  = (int) $this->request->input('event_id', 0);
+    $userId   = $this->request->user['id'];
+    $role     = $this->request->user['role'];
 
     if (empty($qrToken)) {
       Response::validationError(['qr_token' => 'QR token is required.']);
@@ -288,18 +288,13 @@ class TicketController
       Response::forbidden('This ticket is not for one of your events.');
     }
 
-    $checkinMode = $ticket['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE;
-
-    // ── NEW: Case 2b — ticket is valid, but not for THIS event's gate ──
-    // Catches the same-organizer-multiple-events case that the
-    // organizer_id check above can't distinguish.
+    // Case 2b — Ticket is valid, but not for THIS event's gate
     if ((int) $ticket['event_id'] !== $eventId) {
       Response::error(
         "This ticket is for \"{$ticket['event_title']}\", not this for the current event.",
         400
       );
     }
-    // ── END NEW ──
 
     // Case 3 — Ticket already used
     if ($ticket['is_used']) {
@@ -309,19 +304,13 @@ class TicketController
       );
     }
 
-    // Case 4 — All good, mark as used
-    $this->db->prepare("
-            UPDATE tickets SET is_used = 1, used_at = NOW() WHERE id = ?
-        ")->execute([$ticket['id']]);
+    $checkinMode = $ticket['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE;
 
     // ────────────────────────────────────────────────────────────
     // SINGLE MODE — one scan, then permanently invalid
     // ────────────────────────────────────────────────────────────
     if ($checkinMode === Constants::CHECKIN_MODE_SINGLE) {
-      // Atomic claim: only succeeds if is_used is still 0 at the
-      // moment this exact statement runs. If a concurrent request
-      // already flipped it, rowCount() comes back 0 here and we know
-      // we lost the race — no separate read-then-write window exists.
+      // Atomic claim, no separate read-then-write window.
       $stmt = $this->db->prepare("
                 UPDATE tickets
                 SET is_used = 1, used_at = NOW()
@@ -330,9 +319,6 @@ class TicketController
       $stmt->execute([$ticket['id']]);
 
       if ($stmt->rowCount() === 0) {
-        // Refetch so the error message reflects the real used_at,
-        // whether it was already used before this request or a
-        // concurrent scan just claimed it a moment ago.
         $refetch = $this->db->prepare("SELECT used_at FROM tickets WHERE id = ?");
         $refetch->execute([$ticket['id']]);
         $usedAt = $refetch->fetchColumn();
@@ -358,6 +344,7 @@ class TicketController
         'status'        => 'used',
         'checked_in_at' => date('d M Y, g:ia'),
         'checkin_mode'  => Constants::CHECKIN_MODE_SINGLE,
+        'ticket_event_id' => $ticket['ticket_event_id'],
       ], 'Valid ticket. Attendee checked in successfully.');
       return;
     }
@@ -367,9 +354,6 @@ class TicketController
     // ────────────────────────────────────────────────────────────
     $totalDays = (int) $ticket['checkin_days'];
 
-    // If the scanner didn't send a day, default to "which day of the
-    // event is it today", clamped into the valid range so an odd
-    // system clock never produces an out-of-bounds day number.
     $dayNumber = $dayInput !== null
       ? (int) $dayInput
       : max(1, min($totalDays, (int) floor(
@@ -381,17 +365,12 @@ class TicketController
       return;
     }
 
-    // Atomic claim: attempt the insert directly and let the UNIQUE
-    // KEY (ticket_id, day_number) do the "already checked in today"
-    // check for us — this closes the same race window as above.
     try {
       $this->db->prepare("
                 INSERT INTO ticket_checkins (ticket_id, event_id, day_number, checked_in_by)
                 VALUES (?, ?, ?, ?)
             ")->execute([$ticket['id'], $ticket['event_id'], $dayNumber, $userId]);
     } catch (PDOException $e) {
-      // SQLSTATE 23000 = integrity constraint violation, which is
-      // exactly what our UNIQUE KEY throws on a duplicate (ticket_id, day_number).
       if ((string) $e->getCode() === '23000') {
         $stmt = $this->db->prepare("
                     SELECT created_at FROM ticket_checkins WHERE ticket_id = ? AND day_number = ?
@@ -406,14 +385,23 @@ class TicketController
         );
         return;
       }
-      // Anything else is a genuine unexpected DB error — don't swallow it.
       throw $e;
     }
 
-    // How many of the total days has this ticket now used?
     $stmt = $this->db->prepare("SELECT COUNT(*) FROM ticket_checkins WHERE ticket_id = ?");
     $stmt->execute([$ticket['id']]);
     $daysUsed = (int) $stmt->fetchColumn();
+
+    // ── NEW: flip is_used once every day has been consumed ──
+    // Every other part of the app (QRCodeDisplay's `disabled` prop,
+    // TicketController::show(), ProfileController::tickets(), etc.)
+    // reads tickets.is_used as a plain "used vs valid" boolean. Without
+    // this, a fully-consumed multi-day ticket would still show as
+    // "Valid" everywhere else in the UI forever.
+    if ($daysUsed >= $totalDays) {
+      $this->db->prepare("UPDATE tickets SET is_used = 1, used_at = NOW() WHERE id = ?")
+        ->execute([$ticket['id']]);
+    }
 
     NotificationService::ticketCheckedIn(
       (int) $ticket['user_id'],
@@ -425,13 +413,14 @@ class TicketController
       'attendee_name' => $ticket['attendee_name'],
       'ticket_type'   => $ticket['ticket_type'],
       'event_title'   => $ticket['event_title'],
-      'status'        => 'valid',
+      'status'        => $daysUsed >= $totalDays ? 'used' : 'valid',
       'checked_in_at' => date('d M Y, g:ia'),
       'checkin_mode'  => Constants::CHECKIN_MODE_MULTI_DAY,
       'day_number'    => $dayNumber,
       'days_used'     => $daysUsed,
       'total_days'    => $totalDays,
-      ], "Day {$dayNumber}/{$totalDays} checked in successfully.");
+      'ticket_event_id' => $ticket['ticket_event_id'],
+    ], "Day {$dayNumber}/{$totalDays} checked in successfully.");
   }
 
   // GET /api/organizer/events/:id/checkins
