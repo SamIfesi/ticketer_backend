@@ -182,6 +182,42 @@ class MailService
   }
 
   // ============================================================
+  // Event reminder — sent 2 days before the event starts
+  // ============================================================
+  public function sendEventReminder(
+    string $toEmail,
+    string $toName,
+    string $eventTitle,
+    string $eventDate,
+    string $eventLocation,
+    string $pageUrl
+  ): bool {
+    $formattedDate = date('D, d M Y \a\t g:ia', strtotime($eventDate));
+
+    $body =
+      $this->summaryTable([
+        ['Event',    $eventTitle,                 false],
+        ['Date',     $formattedDate,               false],
+        ['Location', $eventLocation ?: 'TBC',      false],
+      ]) .
+      $this->spacer(24) .
+      $this->button('View My Ticket', $pageUrl) .
+      $this->spacer(16) .
+      $this->muted('Have your QR code ready — either in the app or downloaded — for a quick check-in at the gate.');
+
+    return $this->send(
+      $toEmail,
+      $toName,
+      "Reminder: {$eventTitle} is in 2 days!",
+      $this->template(
+        "See you soon! \u{1F389}",
+        "Just a heads-up — {$eventTitle} is happening in 2 days.",
+        $body
+      )
+    );
+  }
+
+  // ============================================================
   // Password changed notification
   // ============================================================
   public function sendPasswordChanged(string $toEmail, string $toName): bool
