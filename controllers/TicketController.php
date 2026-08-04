@@ -300,7 +300,7 @@ class TicketController
     // organizer_id check above can't distinguish.
     if ((int) $ticket['event_id'] !== $eventId) {
       Response::error(
-        "This ticket is for \"{$ticket['event_title']}\" — not this event.",
+        "This ticket is for \"{$ticket['event_title']}\", not this for the current event.",
         400
       );
     }
