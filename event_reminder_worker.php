@@ -1,6 +1,5 @@
 <?php
 
-// ============================================================
 // EVENT REMINDER WORKER
 // Runs once daily (cron). Finds events starting in ~2 days,
 // queues a reminder email + in-app notification for every
@@ -13,7 +12,6 @@
 // HOW TO RUN ON RAILWAY / DOCKER (cron):
 //   0 9 * * * php /var/www/html/event_reminder_worker.php
 //   (9am daily — adjust to your timezone/preference)
-// ============================================================
 
 declare(strict_types=1);
 
@@ -101,6 +99,20 @@ foreach ($events as $event) {
     }
 
     echo "[" . date('Y-m-d H:i:s') . "]   Queued reminders for " . count($attendees) . " attendee(s).\n";
+  }
+
+  $adminStmt = $db->prepare("SELECT id FROM users WHERE role IN ('admin', 'dev') AND is_active = 1");
+  $adminStmt->execute();
+  $admins = $adminStmt->fetchAll(PDO::FETCH_COLUMN);
+
+  foreach ($admins as $adminId) {
+    NotificationService::adminEventReminder(
+      (int) $adminId,
+      $eventId,
+      $event['title'],
+      $event['start_date'],
+      count($attendees)
+    );
   }
 
   // Mark this event as reminded so it's never processed again,
