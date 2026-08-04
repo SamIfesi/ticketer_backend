@@ -49,6 +49,7 @@ class PDFService
     $stmt = $db->prepare("
             SELECT
                 b.id                AS booking_id,
+                b.booking_number,
                 b.quantity,
                 b.unit_price,
                 b.total_amount,
@@ -94,6 +95,7 @@ class PDFService
     // ── Fetch individual tickets ──────────────────────────
     $stmt = $db->prepare("
             SELECT id, qr_token, is_used, used_at
+                 , ticket_number
             FROM tickets
             WHERE booking_id = ?
               AND deleted_at IS NULL
