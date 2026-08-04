@@ -29,7 +29,9 @@ class TicketController
     $stmt = $this->db->prepare("
             SELECT
                 t.id ,
+              t.ticket_number,
                 t.booking_id,
+                b.booking_number,
                 t.qr_token,
                 t.is_used,
                 t.used_at,
@@ -148,11 +150,13 @@ class TicketController
     $stmt = $this->db->prepare("
             SELECT
                 t.id,
+              t.ticket_number,
                 t.qr_token,
                 t.is_used,
                 t.used_at,
                 t.created_at,
                 t.unit_price,
+              b.booking_number,
                 e.title        AS event_title,
                 e.location     AS event_location,
                 e.start_date   AS event_start_date,
@@ -234,25 +238,31 @@ class TicketController
   //     UNIQUE KEY (ticket_id, day_number) on ticket_checkins reject
   //     a duplicate — the database itself is the single source of
   //     truth for "was this already scanned today", not a prior read.
-  // ============================================================
+  //   - require event id to verify the event 
   public function checkin(): void
   {
-    $qrToken  = trim($this->request->input('qr_token', ''));
+    $qrToken = trim($this->request->input('qr_token', ''));
     $dayInput = $this->request->input('day_number', null); // organizer-picked, optional
-    $userId   = $this->request->user['id'];
-    $role     = $this->request->user['role'];
+    $eventId = (int) $this->request->input('event_id', 0);
+    $userId  = $this->request->user['id'];
+    $role    = $this->request->user['role'];
 
     if (empty($qrToken)) {
       Response::validationError(['qr_token' => 'QR token is required.']);
     }
 
+    if ($eventId <= 0) {
+      Response::validationError(['event_id' => 'Event ID is required.']);
+    }
+
     $stmt = $this->db->prepare("
             SELECT
                 t.id,
+                t.event_id,
                 t.is_used,
                 t.used_at,
                 t.user_id,
-                e.id          AS event_id,
+                e.id          AS ticket_event_id,
                 e.title       AS event_title,
                 e.organizer_id,
                 e.start_date,
@@ -284,6 +294,30 @@ class TicketController
     }
 
     $checkinMode = $ticket['checkin_mode'] ?? Constants::CHECKIN_MODE_SINGLE;
+
+    // ── NEW: Case 2b — ticket is valid, but not for THIS event's gate ──
+    // Catches the same-organizer-multiple-events case that the
+    // organizer_id check above can't distinguish.
+    if ((int) $ticket['event_id'] !== $eventId) {
+      Response::error(
+        "This ticket is for \"{$ticket['event_title']}\" — not this event.",
+        400
+      );
+    }
+    // ── END NEW ──
+
+    // Case 3 — Ticket already used
+    if ($ticket['is_used']) {
+      Response::error(
+        'This ticket was already used at ' . date('d M Y, g:ia', strtotime($ticket['used_at'])) . '.',
+        400
+      );
+    }
+
+    // Case 4 — All good, mark as used
+    $this->db->prepare("
+            UPDATE tickets SET is_used = 1, used_at = NOW() WHERE id = ?
+        ")->execute([$ticket['id']]);
 
     // ────────────────────────────────────────────────────────────
     // SINGLE MODE — one scan, then permanently invalid
@@ -402,7 +436,7 @@ class TicketController
       'day_number'    => $dayNumber,
       'days_used'     => $daysUsed,
       'total_days'    => $totalDays,
-    ], "Day {$dayNumber}/{$totalDays} check-in successful.");
+      ], "Day {$dayNumber}/{$totalDays} checked in successfully.");
   }
 
   // ============================================================
@@ -449,9 +483,11 @@ class TicketController
       $stmt = $this->db->prepare("
                 SELECT
                     t.id,
+                  t.ticket_number,
                     u.name        AS attendee_name,
                     u.email       AS attendee_email,
                     tt.name       AS ticket_type,
+                  b.booking_number,
                     (
                         SELECT COUNT(*) FROM ticket_checkins tc
                         WHERE tc.ticket_id = t.id
@@ -504,11 +540,13 @@ class TicketController
     $stmt = $this->db->prepare("
             SELECT
                 t.id,
+              t.ticket_number,
                 t.is_used,
                 t.used_at,
                 u.name        AS attendee_name,
                 u.email       AS attendee_email,
-                tt.name       AS ticket_type
+              tt.name       AS ticket_type,
+              b.booking_number
             FROM tickets t
             JOIN users        u  ON u.id  = t.user_id
             JOIN bookings     b  ON b.id  = t.booking_id
