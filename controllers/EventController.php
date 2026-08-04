@@ -132,7 +132,6 @@ class EventController
                 e.created_at,
                 COALESCE(s.tickets_sold, 0)      AS tickets_sold,
                 COALESCE(s.tickets_available, 0)  AS tickets_available,
-                COALESCE(s.total_revenue, 0)      AS total_revenue,
                 u.id     AS organizer_id,
                 u.name   AS organizer_name,
                 c.name   AS category_name,
@@ -643,12 +642,16 @@ class EventController
     $column    = $isNumeric ? 'e.id' : 'e.slug';
 
     $stmt = $this->db->prepare("
-        SELECT e.*, 
+        SELECT e.*,
+            COALESCE(s.tickets_sold, 0)      AS tickets_sold,
+            COALESCE(s.tickets_available, 0)  AS tickets_available,
+            COALESCE(s.total_revenue, 0)      AS total_revenue,
             u.name AS organizer_name,
             c.name AS category_name
         FROM events e
         JOIN users u ON u.id = e.organizer_id
         LEFT JOIN categories c ON c.id = e.category_id
+        LEFT JOIN v_event_sales s ON s.event_id = e.id
         WHERE {$column} = ?
           AND e.deleted_at IS NULL
           AND (e.organizer_id = ? OR ? = 'dev' OR ? = 'admin')
