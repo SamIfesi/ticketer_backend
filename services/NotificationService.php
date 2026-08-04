@@ -127,6 +127,24 @@ class NotificationService
     );
   }
 
+  public static function eventReminder(
+    int    $userId,
+    int    $eventId,
+    string $eventTitle,
+    string $startDate
+  ): void {
+    $formatted = date('D, d M Y \a\t g:ia', strtotime($startDate));
+    self::push(
+      $userId,
+      'event_reminder',
+      "Reminder — {$eventTitle}",
+      "{$eventTitle} is happening on {$formatted}. Make sure your ticket QR code is ready!",
+      "/my-tickets",
+      $eventId,
+      'event'
+    );
+  }
+
   public static function roleChanged(int $userId, string $newRole): void
   {
     $label = ucfirst($newRole);
@@ -311,6 +329,25 @@ class NotificationService
       "/admin/users/{$organizerId}",
       $organizerId,
       'user'
+    );
+  }
+
+  public static function adminEventReminder(
+    int    $adminId,
+    int    $eventId,
+    string $eventTitle,
+    string $startDate,
+    int    $attendeeCount
+  ): void {
+    $formatted = date('D, d M Y \a\t g:ia', strtotime($startDate));
+    self::push(
+      $adminId,
+      'admin_event_reminder',
+      "Event in 2 days — {$eventTitle}",
+      "{$eventTitle} is happening on {$formatted}. {$attendeeCount} attendee(s) have paid tickets. Reminders have been sent.",
+      "/admin/events",
+      $eventId,
+      'event'
     );
   }
 
