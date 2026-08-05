@@ -126,9 +126,9 @@ class PDFService
     // own file on disk. Nothing here ever bundles multiple
     // tickets into one artifact.
     foreach ($tickets as $ticket) {
-      $ticketId = (string) $ticket['ticket_number'];
-      $pdfPath  = self::$storageDir . "ticket_{$ticketId}.pdf";
-      $pngPath  = self::$storageDir . "ticket_{$ticketId}.png";
+      $ticketNumber = (string) $ticket['ticket_number'];
+      $pdfPath  = self::$storageDir . "ticket_{$ticketNumber}.pdf";
+      $pngPath  = self::$storageDir . "ticket_{$ticketNumber}.png";
 
       // Skip if both already generated
       if (file_exists($pdfPath) && file_exists($pngPath)) {
@@ -179,38 +179,38 @@ class PDFService
   // These are what the controller uses for per-ticket downloads.
   // No booking-level bundling anywhere below this line.
 
-  public static function singleTicketExists(int $ticketId): bool
+  public static function singleTicketExists(string $ticketNumber): bool
   {
-    return file_exists(self::$storageDir . "ticket_{$ticketId}.pdf");
+    return file_exists(self::$storageDir . "ticket_{$ticketNumber}.pdf");
   }
 
-  public static function singleTicketPngExists(int $ticketId): bool
+  public static function singleTicketPngExists(string $ticketNumber): bool
   {
-    return file_exists(self::$storageDir . "ticket_{$ticketId}.png");
+    return file_exists(self::$storageDir . "ticket_{$ticketNumber}.png");
   }
 
-  public static function getSingleTicketPath(int $ticketId): string
+  public static function getSingleTicketPath(string $ticketNumber): string
   {
-    return self::$storageDir . "ticket_{$ticketId}.pdf";
+    return self::$storageDir . "ticket_{$ticketNumber}.pdf";
   }
 
-  public static function getSingleTicketPngPath(int $ticketId): string
+  public static function getSingleTicketPngPath(string $ticketNumber): string
   {
-    return self::$storageDir . "ticket_{$ticketId}.png";
+    return self::$storageDir . "ticket_{$ticketNumber}.png";
   }
 
   // Public URL for a single ticket PDF, keyed by ticket id.
-  public static function getSingleTicketUrl(int $ticketId): string
+  public static function getSingleTicketUrl(string $ticketNumber): string
   {
-    $appUrl = Environment::get('APP_URL', 'http://localhost');
-    return "{$appUrl}/storage/tickets/ticket_{$ticketId}.pdf";
+    $appUrl = Environment::get('APP_URL', 'https://api.ticketer.website');
+    return "{$appUrl}/storage/tickets/ticket_{$ticketNumber}.pdf";
   }
 
   // Public URL for a single ticket PNG, keyed by ticket id.
-  public static function getSingleTicketPngUrl(int $ticketId): string
+  public static function getSingleTicketPngUrl(string $ticketNumber): string
   {
-    $appUrl = Environment::get('APP_URL', 'http://localhost');
-    return "{$appUrl}/storage/tickets/ticket_{$ticketId}.png";
+    $appUrl = Environment::get('APP_URL', 'https://api.ticketer.website');
+    return "{$appUrl}/storage/tickets/ticket_{$ticketNumber}.png";
   }
 
   // BOOKING-LEVEL HELPERS
@@ -223,7 +223,7 @@ class PDFService
   {
     $db   = Database::connect();
     $stmt = $db->prepare("
-            SELECT id FROM tickets
+            SELECT ticket_number FROM tickets
             WHERE booking_id = ? AND deleted_at IS NULL
         ");
     $stmt->execute([$bookingId]);
@@ -232,7 +232,7 @@ class PDFService
     if (empty($tickets)) return false;
 
     foreach ($tickets as $ticket) {
-      if (!self::singleTicketExists((int) $ticket['id'])) return false;
+      if (!self::singleTicketExists((string) $ticket['ticket_number'])) return false;
     }
 
     return true;
@@ -243,7 +243,7 @@ class PDFService
   {
     $db   = Database::connect();
     $stmt = $db->prepare("
-            SELECT id FROM tickets
+            SELECT ticket_number FROM tickets
             WHERE booking_id = ? AND deleted_at IS NULL
         ");
     $stmt->execute([$bookingId]);
@@ -252,7 +252,7 @@ class PDFService
     if (empty($tickets)) return false;
 
     foreach ($tickets as $ticket) {
-      if (!self::singleTicketPngExists((int) $ticket['id'])) return false;
+      if (!self::singleTicketPngExists((string) $ticket['ticket_number'])) return false;
     }
 
     return true;
@@ -263,14 +263,14 @@ class PDFService
   {
     $db   = Database::connect();
     $stmt = $db->prepare("
-            SELECT id FROM tickets WHERE booking_id = ? AND deleted_at IS NULL
+            SELECT ticket_number FROM tickets WHERE booking_id = ? AND deleted_at IS NULL
         ");
     $stmt->execute([$bookingId]);
     $tickets = $stmt->fetchAll();
 
     foreach ($tickets as $ticket) {
       foreach (['pdf', 'png'] as $ext) {
-        $path = self::$storageDir . "ticket_{$ticket['id']}.{$ext}";
+        $path = self::$storageDir . "ticket_{$ticket['ticket_number']}.{$ext}";
         if (file_exists($path)) {
           unlink($path);
         }
@@ -282,7 +282,7 @@ class PDFService
   // One call per ticket row.
   private static function renderTemplate(array $booking, array $ticket): string
   {
-    $appUrl = Environment::get('APP_URL', 'http://localhost');
+    $appUrl = Environment::get('APP_URL', 'https://api.ticketer.website');
 
     $tailwindcss     = file_get_contents(__DIR__ . '/../resources/pdf.css');
     $template_ticket = file_get_contents(__DIR__ . '/../templates/ticket.html');
@@ -290,7 +290,7 @@ class PDFService
     // ── Format values ─────────────────────────────────────
     $ticketId       = (int) $ticket['id'];
     $ticketIdPadded = $ticket['ticket_number'] ?? TokenHelper::generateDisplayId($ticketId, 'TK');
-    $amount         = (float) $booking['unit_price'] === 0.0
+    $amount         = (float) $booking['unit_price'] === 0.00
       ? 'Free'
       : '₦' . number_format((float) $booking['unit_price'], 0);
 

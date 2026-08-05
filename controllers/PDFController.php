@@ -42,7 +42,7 @@ class TicketPDFController
   // whole booking in one pass), cached on subsequent calls.
   public function downloadSingle(array $params): void
   {
-    $ticketId = (int) $params['id'];
+    $ticketId = (string) $params['ticket_number'];
     $userId   = $this->request->user['id'];
     $role     = $this->request->user['role'];
 
@@ -70,7 +70,7 @@ class TicketPDFController
   // GET /api/tickets/:id/download/png
   public function downloadSinglePng(array $params): void
   {
-    $ticketId = (int) $params['id'];
+    $ticketId = (string) $params['ticket_number'];
     $userId   = $this->request->user['id'];
     $role     = $this->request->user['role'];
 
@@ -101,7 +101,7 @@ class TicketPDFController
   // downloadSingle() but no ownership check.
   public function adminDownloadSingle(array $params): void
   {
-    $ticketId = (int) $params['id'];
+    $ticketId = (string) $params['ticket_number'];
 
     $ticket = $this->fetchTicketOwnership($ticketId);
 
@@ -119,7 +119,7 @@ class TicketPDFController
   // GET /api/admin/tickets/:id/download/png
   public function adminDownloadSinglePng(array $params): void
   {
-    $ticketId = (int) $params['id'];
+    $ticketId = (string) $params['ticket_number'];
 
     $ticket = $this->fetchTicketOwnership($ticketId);
 
@@ -158,7 +158,7 @@ class TicketPDFController
 
     try {
       $filePaths  = PDFService::generateTickets($bookingId);
-      $ticketIds  = $this->fetchTicketIdsForBooking($bookingId);
+      $ticketIds  = $this->fetchTicketsForBooking($bookingId);
 
       Response::success([
         'booking_id'  => $bookingId,
@@ -199,22 +199,22 @@ class TicketPDFController
       Response::forbidden('You do not have access to this booking.');
     }
 
-    $ticketIds = $this->fetchTicketIdsForBooking($bookingId);
-    $tickets   = [];
+    $tickets = $this->fetchTicketsForBooking($bookingId);
     $allReady  = true;
 
-    foreach ($ticketIds as $ticketId) {
-      $pdfReady = PDFService::singleTicketExists($ticketId);
-      $pngReady = PDFService::singleTicketPngExists($ticketId);
+    foreach ($tickets as $ticket) {
+      $pdfReady = PDFService::singleTicketExists($ticket['ticket_number']);
+      $pngReady = PDFService::singleTicketPngExists($ticket['ticket_number']);
 
       if (!$pdfReady || !$pngReady) {
         $allReady = false;
       }
 
       $tickets[] = [
-        'ticket_id'    => $ticketId,
-        'pdf_ready'    => $pdfReady,
-        'png_ready'    => $pngReady,
+        'ticket_id'     => $ticket['id'],
+        'ticket_number' => $ticket['ticket_number'],
+        'pdf_ready'     => $pdfReady,
+        'png_ready'     => $pngReady,
       ];
     }
 
@@ -241,15 +241,15 @@ class TicketPDFController
       }
     }
 
-    $filePath = PDFService::getSingleTicketPath($ticketId);
+    $ticket   = $this->fetchTicketOwnership($ticketId);
+    $filePath = PDFService::getSingleTicketPath($ticket['ticket_number']);
 
     if (!file_exists($filePath)) {
       Response::error('Ticket file not found. Please try regenerating it.', 404);
       return;
     }
 
-    $ticketIdPadded = str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
-    $filename       = "Ticketer_Ticket_#{$ticketIdPadded}.pdf";
+    $filename       = "Ticketer_Ticket_#{$ticket['ticket_number']}.pdf";
 
     if (ob_get_level()) {
       ob_end_clean();
@@ -277,15 +277,15 @@ class TicketPDFController
       }
     }
 
-    $filePath = PDFService::getSingleTicketPngPath($ticketId);
+    $ticket = $this->fetchTicketOwnership($ticketId);
+    $filePath = PDFService::getSingleTicketPngPath($ticket['ticket_number']);
 
     if (!file_exists($filePath)) {
       Response::error('Ticket image not found. Please try regenerating it.', 404);
       return;
     }
 
-    $ticketIdPadded = str_pad((string) $ticketId, 6, '0', STR_PAD_LEFT);
-    $filename       = "Ticketer_Ticket_#{$ticketIdPadded}.png";
+    $filename       = "Ticketer_Ticket_#{$ticket['ticket_number']}.png";
 
     if (ob_get_level()) {
       ob_end_clean();
@@ -351,14 +351,14 @@ class TicketPDFController
     return $stmt->fetch();
   }
 
-  private function fetchTicketIdsForBooking(int $bookingId): array
+  private function fetchTicketsForBooking(int $bookingId): array
   {
     $stmt = $this->db->prepare("
-            SELECT id FROM tickets
+            SELECT id, ticket_number FROM tickets
             WHERE booking_id = ? AND deleted_at IS NULL
             ORDER BY id ASC
         ");
     $stmt->execute([$bookingId]);
-    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
   }
 }
