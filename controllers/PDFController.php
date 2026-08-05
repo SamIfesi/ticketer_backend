@@ -42,7 +42,7 @@ class TicketPDFController
   // whole booking in one pass), cached on subsequent calls.
   public function downloadSingle(array $params): void
   {
-    $ticketId = (string) $params['ticket_number'];
+    $ticketId = (int) $params['id'];
     $userId   = $this->request->user['id'];
     $role     = $this->request->user['role'];
 
@@ -70,7 +70,7 @@ class TicketPDFController
   // GET /api/tickets/:id/download/png
   public function downloadSinglePng(array $params): void
   {
-    $ticketId = (string) $params['ticket_number'];
+    $ticketId = (int) $params['id'];
     $userId   = $this->request->user['id'];
     $role     = $this->request->user['role'];
 
@@ -101,7 +101,7 @@ class TicketPDFController
   // downloadSingle() but no ownership check.
   public function adminDownloadSingle(array $params): void
   {
-    $ticketId = (string) $params['ticket_number'];
+    $ticketId = (int) $params['id'];
 
     $ticket = $this->fetchTicketOwnership($ticketId);
 
@@ -119,7 +119,7 @@ class TicketPDFController
   // GET /api/admin/tickets/:id/download/png
   public function adminDownloadSinglePng(array $params): void
   {
-    $ticketId = (string) $params['ticket_number'];
+    $ticketId = (int) $params['id'];
 
     $ticket = $this->fetchTicketOwnership($ticketId);
 
@@ -199,10 +199,11 @@ class TicketPDFController
       Response::forbidden('You do not have access to this booking.');
     }
 
-    $tickets = $this->fetchTicketsForBooking($bookingId);
+    $ticketRow = $this->fetchTicketsForBooking($bookingId);
+    $tickets = [];
     $allReady  = true;
 
-    foreach ($tickets as $ticket) {
+    foreach ($ticketRow as $ticket) {
       $pdfReady = PDFService::singleTicketExists($ticket['ticket_number']);
       $pngReady = PDFService::singleTicketPngExists($ticket['ticket_number']);
 
@@ -229,10 +230,9 @@ class TicketPDFController
 
   private function serveSinglePdf(int $ticketId, int $bookingId): void
   {
-    if (!PDFService::singleTicketExists($ticketId)) {
+    $ticket = $this->fetchTicketOwnership($ticketId);
+    if (!PDFService::singleTicketExists($ticket['ticket_number'])) {
       try {
-        // Generates every ticket under this booking (cheap no-op
-        // for files that already exist on disk).
         PDFService::generateTickets($bookingId);
       } catch (Exception $e) {
         error_log("serveSinglePdf generation error for ticket #{$ticketId}: " . $e->getMessage());
@@ -241,7 +241,6 @@ class TicketPDFController
       }
     }
 
-    $ticket   = $this->fetchTicketOwnership($ticketId);
     $filePath = PDFService::getSingleTicketPath($ticket['ticket_number']);
 
     if (!file_exists($filePath)) {
@@ -249,7 +248,7 @@ class TicketPDFController
       return;
     }
 
-    $filename       = "Ticketer_Ticket_#{$ticket['ticket_number']}.pdf";
+    $filename = "Ticketer_Ticket_{$ticket['ticket_number']}.pdf";
 
     if (ob_get_level()) {
       ob_end_clean();
@@ -267,7 +266,8 @@ class TicketPDFController
 
   private function serveSinglePng(int $ticketId, int $bookingId): void
   {
-    if (!PDFService::singleTicketPngExists($ticketId)) {
+    $ticket = $this->fetchTicketOwnership($ticketId);
+    if (!PDFService::singleTicketPngExists($ticket['ticket_number'])) {
       try {
         PDFService::generateTickets($bookingId);
       } catch (Exception $e) {
@@ -277,7 +277,6 @@ class TicketPDFController
       }
     }
 
-    $ticket = $this->fetchTicketOwnership($ticketId);
     $filePath = PDFService::getSingleTicketPngPath($ticket['ticket_number']);
 
     if (!file_exists($filePath)) {
@@ -285,7 +284,7 @@ class TicketPDFController
       return;
     }
 
-    $filename       = "Ticketer_Ticket_#{$ticket['ticket_number']}.png";
+    $filename = "Ticketer_Ticket_{$ticket['ticket_number']}.png";
 
     if (ob_get_level()) {
       ob_end_clean();
