@@ -126,7 +126,7 @@ class PDFService
     // own file on disk. Nothing here ever bundles multiple
     // tickets into one artifact.
     foreach ($tickets as $ticket) {
-      $ticketId = (int) $ticket['id'];
+      $ticketId = (string) $ticket['ticket_number'];
       $pdfPath  = self::$storageDir . "ticket_{$ticketId}.pdf";
       $pngPath  = self::$storageDir . "ticket_{$ticketId}.png";
 
