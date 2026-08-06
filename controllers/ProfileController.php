@@ -377,11 +377,11 @@ class ProfileController
                 t.ticket_number,
                 t.qr_token,
                 t.booking_id,
+                b.booking_number,
                 t.is_used,
                 t.used_at,
                 t.created_at,
                 b.total_amount,
-                b.booking_number
                 b.unit_price,
                 e.id          AS event_id,
                 e.title       AS event_title,
