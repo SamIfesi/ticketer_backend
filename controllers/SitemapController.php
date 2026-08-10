@@ -48,10 +48,6 @@ class SitemapController
       echo "  </url>\n";
     }
 
-    // Static pages worth indexing
-    echo "  <url><loc>{$appUrl}/</loc><priority>1.0</priority></url>\n";
-    echo "  <url><loc>{$appUrl}/events</loc><priority>0.9</priority></url>\n";
-
     foreach ($events as $event) {
       $loc = htmlspecialchars("{$appUrl}/events/{$event['slug']}", ENT_QUOTES);
       $lastmod = date('Y-m-d', strtotime($event['updated_at']));
