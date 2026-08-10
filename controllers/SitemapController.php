@@ -7,9 +7,9 @@ class SitemapController
   // in src/Routes.jsx. Auth pages, onboarding, and anything behind
   // ProtectedRoute/RoleRoute are intentionally excluded.
   private const STATIC_PAGES = [
-    // ['path' => '/',              'priority' => '1.0', 'changefreq' => 'daily'],
+    ['path' => '/',              'priority' => '1.0', 'changefreq' => 'daily'],
     ['path' => '/home',          'priority' => '0.9', 'changefreq' => 'daily'],
-    // ['path' => '/events',        'priority' => '0.9', 'changefreq' => 'daily'],
+    ['path' => '/events',        'priority' => '0.9', 'changefreq' => 'daily'],
     ['path' => '/about',         'priority' => '0.7', 'changefreq' => 'monthly'],
     ['path' => '/how-it-works',  'priority' => '0.5', 'changefreq' => 'monthly'],
     ['path' => '/legal',         'priority' => '0.3', 'changefreq' => 'yearly'],
