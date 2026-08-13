@@ -38,8 +38,7 @@ $stmt = $db->prepare("
     WHERE status = 'published'
       AND deleted_at IS NULL
       AND reminder_sent_at IS NULL
-      AND start_date BETWEEN DATE_ADD(NOW(), INTERVAL 47 HOUR)
-                          AND DATE_ADD(NOW(), INTERVAL 49 HOUR)
+      AND DATE(start_date) = DATE(DATE_ADD(NOW(), INTERVAL 2 DAY))
     ORDER BY start_date ASC
 ");
 $stmt->execute();
