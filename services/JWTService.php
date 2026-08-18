@@ -96,7 +96,7 @@ class JWTService
       setcookie('token', $token, [
         'expires'  => time() + $expiry,
         'path'     => '/',
-        'domain'   => $isLocal ? '' : $cookieHost,
+        'domain'   => $cookieHost,
         'secure'   => !$isLocal,
         'httponly' => true,
         'samesite' => 'Lax',
@@ -117,7 +117,7 @@ class JWTService
       setcookie('token', '', [
         'expires'  => time() - 3600,
         'path'     => '/',
-        'domain'   => $isLocal ? '' : $cookieHost,
+        'domain'   => $cookieHost,
         'secure'   => !$isLocal,
         'httponly' => true,
         'samesite' => 'Lax',
