@@ -83,6 +83,7 @@ class GoogleAuthController
     $this->logActivity($user['id'], 'google_login', 'Signed in with Google');
 
     $token = JWTService::generate($user);
+    JWTService::setAuthCookie($token);
 
     Response::success([
       'user'           => $user,

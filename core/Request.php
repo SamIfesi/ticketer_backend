@@ -65,8 +65,16 @@ class Request
   }
 
   /**
-   * Get the Bearer token from the Authorization header
-   * Authorization: Bearer eyJhbGci...
+   * Get the Bearer token from the Authorization header,
+   * falling back to the HttpOnly cookie set on login.
+   *
+   * Header takes priority so nothing changes for any client that
+   * still sends Authorization: Bearer (e.g. old cached frontend
+   * builds during rollout, or non-browser API consumers).
+   *
+   * The cookie fallback is what makes cross-subdomain sessions work —
+   * a cookie set with Domain=.ticketer.website is sent automatically
+   * by the browser to every subdomain, no header needed.
    */
   public function bearerToken(): ?string
   {
@@ -74,6 +82,10 @@ class Request
 
     if (str_starts_with($authHeader, 'Bearer ')) {
       return substr($authHeader, 7);
+    }
+
+    if (!empty($_COOKIE['token'])) {
+      return $_COOKIE['token'];
     }
 
     return null;
