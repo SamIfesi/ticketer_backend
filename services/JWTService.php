@@ -70,6 +70,60 @@ class JWTService
         return $data;
     }
 
+    /**
+     * Set the auth cookie so the JWT is shared across every
+     * ticketer.website subdomain (ticketer.website, app.ticketer.website, etc).
+     *
+     * HttpOnly  — JS can't read it, blocks XSS token theft (an upgrade
+     *             over the old localStorage approach).
+     * Secure    — HTTPS only.
+     * SameSite  — Lax is enough since subdomains are "same-site"; this
+     *             still blocks the cookie from being sent on cross-site
+     *             requests initiated by other domains.
+     * Domain    — leading dot makes it valid for the apex + all subdomains.
+     *
+     * Falls back to no Domain attribute on localhost, since
+     * ".localhost" isn't a valid cookie domain and local dev doesn't
+     * need cross-subdomain sharing anyway.
+     */
+    public static function setAuthCookie(string $token): void
+    {
+      $expiry     = (int) Environment::get('JWT_EXPIRY', '86400');
+      $appEnv     = Environment::get('APP_ENV', 'development');
+      $isLocal    = $appEnv === 'development';
+      $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
+  
+      setcookie('token', $token, [
+        'expires'  => time() + $expiry,
+        'path'     => '/',
+        'domain'   => $isLocal ? '' : $cookieHost,
+        'secure'   => !$isLocal,
+        'httponly' => true,
+        'samesite' => 'Lax',
+      ]);
+    }
+  
+    /**
+     * Clear the auth cookie on logout. Attributes (path, domain,
+     * secure, samesite) must match what was used to set it, or the
+     * browser will treat it as a different cookie and not clear it.
+     */
+    public static function clearAuthCookie(): void
+    {
+      $appEnv     = Environment::get('APP_ENV', 'production');
+      $isLocal    = $appEnv === 'development';
+      $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
+  
+      setcookie('token', '', [
+        'expires'  => time() - 3600,
+        'path'     => '/',
+        'domain'   => $isLocal ? '' : $cookieHost,
+        'secure'   => !$isLocal,
+        'httponly' => true,
+        'samesite' => 'Lax',
+      ]);
+    }
+
     private static function base64UrlEncode(string $data): string
     {
         return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
