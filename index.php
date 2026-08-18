@@ -3,21 +3,32 @@
 declare(strict_types=1);
 date_default_timezone_set('UTC');
 
-// ============================================================
+
 // 1. CORS
-// ============================================================
-header('Access-Control-Allow-Origin: *');
+
+$allowedOriginPattern = '/^https:\/\/([a-z0-9-]+\.)?ticketer\.website$/i';
+
+// Also allow localhost during local dev (adjust/remove for production-only)
+$isLocalDev = preg_match('/^http:\/\/localhost(:\d+)?$/i', $_SERVER['HTTP_ORIGIN'] ?? '');
+
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+if (preg_match($allowedOriginPattern, $origin) || $isLocalDev) {
+  header("Access-Control-Allow-Origin: {$origin}");
+  header('Access-Control-Allow-Credentials: true');
+}
+
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Vary: Origin'); // important — prevents CDN/proxy caching the wrong origin back to other clients
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   http_response_code(200);
   exit;
 }
 
-// ============================================================
 // 2. AUTOLOAD
-// ============================================================
+
 
 require_once __DIR__ . '/config/Environment.php';
 Environment::load(__DIR__ . '/.env');
@@ -69,17 +80,17 @@ require_once __DIR__ . '/controllers/GoogleAuthController.php';
 require_once __DIR__ . '/controllers/EventMetaController.php';
 require_once __DIR__ . '/controllers/SitemapController.php';
 
-// ============================================================
+
 // 3. BOOTSTRAP
-// ============================================================
+
 $request = new Request();
 $router  = new Router();
 
-// ============================================================
+
 // 4. HEALTH CHECK
 // Must be registered BEFORE routes so it matches first
 // Works regardless of subfolder — matches end of URI
-// ============================================================
+
 if (str_ends_with($request->uri, '/api/health') && $request->method === 'GET') {
   Response::success([
     'app'     => 'Event Ticketing API',
@@ -89,9 +100,9 @@ if (str_ends_with($request->uri, '/api/health') && $request->method === 'GET') {
   ], 'API is healthy');
 }
 
-// ============================================================
+
 // 5. REGISTER ROUTES
-// ============================================================
+
 require_once __DIR__ . '/routes/auth.php';
 require_once __DIR__ . '/routes/sitemap.php';
 require_once __DIR__ . '/routes/profile.php';
@@ -109,7 +120,7 @@ require_once __DIR__ . '/routes/payouts.php';
 require_once __DIR__ . '/routes/cloudinary.php';
 require_once __DIR__ . '/routes/dev.php';
 
-// ============================================================
+
 // 6. DISPATCH
-// ============================================================
+
 $router->dispatch($request);
