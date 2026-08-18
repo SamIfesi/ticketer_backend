@@ -89,7 +89,7 @@ class JWTService
     public static function setAuthCookie(string $token): void
     {
       $expiry     = (int) Environment::get('JWT_EXPIRY', '86400');
-      $appEnv     = Environment::get('APP_ENV', 'development');
+      $appEnv     = Environment::get('APP_ENV', 'production');
       $isLocal    = $appEnv === 'development';
       $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
   
