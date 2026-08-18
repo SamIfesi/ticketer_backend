@@ -73,6 +73,7 @@ class AuthController
 
     // Issue JWT
     $token = JWTService::generate($user);
+    JWTService::setAuthCookie($token);
 
     Response::success([
       'user'         => $user,
@@ -190,6 +191,7 @@ class AuthController
     $this->logActivity($user['id'], 'login', 'Logged in');
 
     $token = JWTService::generate($user);
+    JWTService::setAuthCookie($token);
 
     Response::success([
       'user'           => $user,
@@ -203,6 +205,7 @@ class AuthController
   public function logout(): void
   {
     $this->logActivity($this->request->user['id'], 'logout', 'Logged out');
+    JWTService::clearAuthCookie();
     Response::success(null, 'Logged out successfully.');
   }
 
