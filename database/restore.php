@@ -31,7 +31,7 @@ $host = arg('host', '127.0.0.1');
 $port = (int) arg('port', 3306);
 $user = arg('user', 'root');
 $db   = arg('db', 'railway');
-$file = arg('file', __DIR__ . '/backup.sql');
+$file = arg('file', __DIR__ . '/railway.dump');
 
 // Prompt for password without echoing it to the terminal.
 fwrite(STDOUT, "Password for {$user}@{$host}:{$port}: ");
