@@ -3,17 +3,27 @@
 /**
  * Handles Google OAuth sign-in / sign-up.
  *
- * Flow:
- *   1. React uses @react-oauth/google (implicit flow) → gets access_token
- *   2. React sends POST /api/auth/callback/google { access_token }
- *   3. PHP calls Google's userinfo endpoint to verify + fetch profile
- *   4. PHP finds-or-creates the user, issues JWT
- *   5. Returns same shape as /api/auth/login
+ * Flow (ID-token version):
+ *   1. React renders Google's own <GoogleLogin> button (@react-oauth/google)
+ *   2. Google issues a signed ID token (a JWT) directly to the browser —
+ *      no popup.closed polling involved, so this is unaffected by COOP
+ *   3. React sends POST /api/auth/callback/google { id_token }
+ *   4. PHP verifies the token against Google's tokeninfo endpoint —
+ *      this confirms the signature AND expiry were valid, since Google
+ *      itself checked them; we still verify `aud` and `iss` ourselves
+ *   5. PHP finds-or-creates the user, issues our own JWT, sets the
+ *      httpOnly auth cookie exactly as the password-login flow does
+ *   6. Returns the same shape as /api/auth/login
  *
- * Why userinfo and not tokeninfo?
- *   access_token → userinfo is the standard OAuth2 pattern.
- *   It gives us verified profile data (sub, email, name, picture)
- *   directly from Google — no extra JWT parsing needed.
+ * NOTE on verification approach:
+ *   Calling https://oauth2.googleapis.com/tokeninfo is the simplest way to
+ *   verify an ID token without a JWT/JWKS library in the project. Google's
+ *   own docs note this endpoint is fine for normal use but recommend local
+ *   JWKS-based verification for very high request volumes (it does have
+ *   informal rate limits). If Google login volume grows significantly,
+ *   swap verifyGoogleIdToken() for local RS256 verification against
+ *   https://www.googleapis.com/oauth2/v3/certs — the rest of this
+ *   controller does not need to change.
  *
  * Route:
  *   POST /api/auth/callback/google   (public — no AuthMiddleware)
@@ -31,20 +41,20 @@ class GoogleAuthController
 
   // POST /api/auth/callback/google
   //
-  // Body: { access_token: string }
+  // Body: { id_token: string }
   //
   // Returns same shape as /api/auth/login:
   //   { user, token, email_verified: true }
   public function googleLogin(): void
   {
-    $accessToken = trim($this->request->input('access_token', ''));
+    $idToken = trim($this->request->input('id_token', ''));
 
-    if (empty($accessToken)) {
-      Response::validationError(['access_token' => 'Google access token is required.']);
+    if (empty($idToken)) {
+      Response::validationError(['id_token' => 'Google ID token is required.']);
     }
 
-    // ── Step 1: Verify token + fetch profile from Google ──
-    $googleUser = $this->fetchGoogleProfile($accessToken);
+    // ── Step 1: Verify the ID token ────────────────────────
+    $googleUser = $this->verifyGoogleIdToken($idToken);
 
     if (!$googleUser) {
       Response::error('Could not verify Google account. Please try again.', 401);
@@ -57,6 +67,12 @@ class GoogleAuthController
 
     if (empty($email)) {
       Response::error('Your Google account must have an email address.', 400);
+    }
+
+    // tokeninfo returns email_verified as the string "true"/"false"
+    $emailVerified = filter_var($googleUser['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    if (!$emailVerified) {
+      Response::error('Your Google email address is not verified.', 400);
     }
 
     // ── Step 2: Find or create user ───────────────────────
@@ -92,18 +108,25 @@ class GoogleAuthController
     ], 'Signed in with Google successfully.');
   }
 
-  // Fetch verified profile from Google using the access token.
-  // Returns null if the token is invalid or the request fails.
-  private function fetchGoogleProfile(string $accessToken): ?array
+  // Verify a Google ID token via Google's tokeninfo endpoint.
+  // Returns the decoded claims (sub, email, email_verified, name, picture,
+  // aud, iss, exp, ...) on success, or null if invalid/unverifiable.
+  //
+  // Google's tokeninfo endpoint validates the signature and expiry for us —
+  // if it returns HTTP 200, those checks already passed. We still must
+  // verify `aud` (audience) ourselves: tokeninfo will happily validate a
+  // token that was legitimately issued for a DIFFERENT app's client ID,
+  // so skipping the aud check would let anyone with any Google Sign-In
+  // integration mint a token that logs into YOUR app.
+  private function verifyGoogleIdToken(string $idToken): ?array
   {
-    $ch = curl_init('https://www.googleapis.com/oauth2/v3/userinfo');
+    $url = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
+
+    $ch = curl_init($url);
     curl_setopt_array($ch, [
       CURLOPT_RETURNTRANSFER => true,
       CURLOPT_TIMEOUT        => 10,
       CURLOPT_SSL_VERIFYPEER => true,
-      CURLOPT_HTTPHEADER     => [
-        'Authorization: Bearer ' . $accessToken,
-      ],
     ]);
 
     $response  = curl_exec($ch);
@@ -116,15 +139,34 @@ class GoogleAuthController
       return null;
     }
 
+    // tokeninfo returns non-200 for an invalid, tampered, or expired token
     if ($httpCode !== 200) {
-      error_log('GoogleAuthController: userinfo returned HTTP ' . $httpCode . ' — ' . $response);
+      error_log('GoogleAuthController: tokeninfo returned HTTP ' . $httpCode . ' — ' . $response);
       return null;
     }
 
     $data = json_decode($response, true);
 
     if (json_last_error() !== JSON_ERROR_NONE || empty($data['sub'])) {
-      error_log('GoogleAuthController: invalid userinfo response');
+      error_log('GoogleAuthController: invalid tokeninfo response');
+      return null;
+    }
+
+    // Verify audience — must match OUR Google OAuth client ID
+    $expectedAud = Environment::get('GOOGLE_CLIENT_ID');
+    if (empty($expectedAud)) {
+      error_log('GoogleAuthController: GOOGLE_CLIENT_ID is not set in the environment.');
+      return null;
+    }
+    if (($data['aud'] ?? '') !== $expectedAud) {
+      error_log('GoogleAuthController: aud mismatch. Expected ' . $expectedAud . ', got ' . ($data['aud'] ?? 'none'));
+      return null;
+    }
+
+    // Verify issuer is actually Google
+    $issuer = $data['iss'] ?? '';
+    if (!in_array($issuer, ['accounts.google.com', 'https://accounts.google.com'], true)) {
+      error_log('GoogleAuthController: unexpected issuer — ' . $issuer);
       return null;
     }
 
