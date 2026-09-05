@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 TRUNCATE TABLE `users`;
 INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `email_verified`, `email_verified_at`, `is_active`) VALUES
 (1, 'Sam Dev', 'sam@dev.local', '$2a$13$PifloQ/KgrZjNJkbAw.J1e6/f3kgC3w7Faieinzd5RWGAAvxM4KI2', 'dev', 1, NOW(), 1),
-(2, 'Admin Ticketer', 'admin@admin.local', '$2a$12$9C69.y9Q/JFhm/PdCGYuKOwpUBIVMRuz50mHvOidh.bHSWCw4Dd1C', 'admin', 1, NOW(), 1),
+(2, 'Admin Ticketer', 'admin@admin.local', '$2a$12$9C69.y9Q/JFhm/PdCGYuKOwpUBIVMRuz50mHvOidh.bHSWCw4Dd1C', 'admin', 1, NOW(), 1);
 
 ALTER TABLE `users`
   ADD COLUMN `google_id`      VARCHAR(255) DEFAULT NULL AFTER `avatar_public_id`,
