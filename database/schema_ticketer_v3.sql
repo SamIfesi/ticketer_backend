@@ -313,9 +313,6 @@ TRUNCATE TABLE `users`;
 INSERT INTO `users` (`id`, `name`, `email`, `password_hash`, `role`, `email_verified`, `email_verified_at`, `is_active`) VALUES
 (1, 'Sam Dev', 'sam@dev.local', '$2a$13$PifloQ/KgrZjNJkbAw.J1e6/f3kgC3w7Faieinzd5RWGAAvxM4KI2', 'dev', 1, NOW(), 1),
 (2, 'Admin Ticketer', 'admin@admin.local', '$2a$12$9C69.y9Q/JFhm/PdCGYuKOwpUBIVMRuz50mHvOidh.bHSWCw4Dd1C', 'admin', 1, NOW(), 1),
-(3, 'Rose Ifesinachi',  'Rose@gmail.com', '$2y$10$aKUe8DRZl2LoxRWj2xEH0e9xkv74OjYJ9/A8Zi7xfWTN5/5C7ZCK2', 'attendee',  0, NOW(), 0),
-(4, 'Jon Stewart Doe',  'test@example.us', '$2y$10$jb4mYcclZVmMge0n9MQlS.0B4I3jjwi88MyVT/KGeAjVwbXI3l8g2', 'organizer', 0, NOW(), 1),
-(5, 'João Souza Silva', 'teste@exemplo.us', '$2y$10$N87Pb2P5nunxaQImkRmUMOu5nV11o2cz0leIieJULCAoFQezfBIpy', 'attendee',  0, NOW(), 1);
 
 ALTER TABLE `users`
   ADD COLUMN `google_id`      VARCHAR(255) DEFAULT NULL AFTER `avatar_public_id`,
