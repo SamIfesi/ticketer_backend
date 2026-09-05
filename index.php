@@ -91,7 +91,7 @@ $router  = new Router();
 
 if (str_ends_with($request->uri, '/api/health') && $request->method === 'GET') {
   Response::success([
-    'app'     => 'Event Ticketing API',
+    'app'     => 'Ticketer API',
     'status'  => 'running',
     'env'     => Environment::get('APP_ENV', 'development'),
     'php'     => PHP_VERSION,
