@@ -33,6 +33,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASS}
     volumes:
       - db_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DATABASE_ROOT_PASS}"]
       interval: 10s
