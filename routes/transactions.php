@@ -10,23 +10,23 @@ $router->get(
 $router->get(
   '/api/organizer/transactions',
   [TransactionController::class, 'organizer'],
-  [AuthMiddleware::class, RoleMiddleware::class => ['organizer', 'dev']]
+  [AuthMiddleware::class, RoleMiddleware::class => ['organizer', 'dev', 'admin']]
 );
 
 $router->get(
   '/api/admin/transactions/summary',
   [TransactionController::class, 'summary'],
-  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev']]
+  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev', 'admin']]
 );
 
 $router->get(
   '/api/admin/transactions',
   [TransactionController::class, 'admin'],
-  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev']]
+  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev', 'admin']]
 );
 
 $router->get(
   '/api/admin/transactions/:bookingId',
   [TransactionController::class, 'byBooking'],
-  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev']]
+  [AuthMiddleware::class, RoleMiddleware::class => ['admin', 'dev', 'admin']]
 );
