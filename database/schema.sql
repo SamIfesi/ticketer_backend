@@ -1,4 +1,5 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+SET FOREIGN_KEY_CHECKS = 0;
 START TRANSACTION;
 
 DROP TABLE IF EXISTS `activity_logs`;
@@ -456,4 +457,5 @@ FROM `events` e
 LEFT JOIN `bookings` b ON b.event_id = e.id AND b.deleted_at IS NULL
 GROUP BY e.id, e.title, e.total_tickets;
 
+SET FOREIGN_KEY_CHECKS = 1;
 COMMIT;
