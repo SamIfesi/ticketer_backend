@@ -28,9 +28,13 @@ class Constants
   const PAYMENT_FAILED   = 'failed';
   const PAYMENT_REFUNDED = 'refunded';
 
-  // PAYOUT CONSTANTS - This is the fraud protection buffer.
-  // 48 hours = attendees have 2 days to report a scam event.
-  const PAYOUT_HOLD_HOURS = 48;
+  // PAYOUT CONSTANTS
+  const PAYOUT_HOLD_HOURS       = 48;  // standard plan — fraud buffer
+  const PAYOUT_HOLD_HOURS_EARLY = 2;   // early plan — short hold, organizer opts in
+
+  // Payout plans — must match ENUM in events table
+  const PAYOUT_PLAN_STANDARD = 'standard';
+  const PAYOUT_PLAN_EARLY    = 'early';
 
   // Payout statuses — must match ENUM in event_payouts table
   const PAYOUT_PENDING   = 'pending';
@@ -46,7 +50,6 @@ class Constants
   // Storage paths
   const STORAGE_TICKETS  = __DIR__ . '/../storage/tickets/';
   const STORAGE_QRCODES  = __DIR__ . '/../storage/qrcodes/';
-  const STORAGE_BANNERS  = __DIR__ . '/../storage/banners/';
 
   // checkin mode - for multi day check in
   const CHECKIN_MODE_SINGLE    = 'single';
