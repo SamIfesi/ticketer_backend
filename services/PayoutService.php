@@ -9,6 +9,7 @@
  *   - Triggering Paystack transfers
  *   - Strike system for cancellations
  *   - Freezing payouts
+ *   - Instant payouts for first live event (temporary)
  */
 class PayoutService
 {
@@ -79,14 +80,15 @@ class PayoutService
 
     $eventEndDate = $event['end_date'] ?? date('Y-m-d H:i:s', strtotime('+1 day'));
 
+    // ── Per-event hold: 'early' plan uses a short buffer instead of
+    //    the standard 48hr fraud window. Organizer opts into this
+    //    at event creation — see EventController::store()/update().
     $holdHours = Constants::PAYOUT_HOLD_HOURS;
-    $holdUntil = date(
-      'Y-m-d H:i:s',
-      strtotime(
-        "+{$holdHours} hours",
-        strtotime($eventEndDate)
-      )
-    );
+    $earlyPay = Constants::PAYOUT_HOLD_HOURS_EARLY;
+
+    $holdUntil = ($event['payout_plan'] ?? Constants::PAYOUT_PLAN_STANDARD) === Constants::PAYOUT_PLAN_EARLY
+      ? date('Y-m-d H:i:s', strtotime("+{$earlyPay} hours"))
+      : date('Y-m-d H:i:s', strtotime("+{$holdHours} hours", strtotime($eventEndDate)));
 
     // Upsert — if row exists for this event, add to it
     self::db()->prepare("
@@ -114,7 +116,14 @@ class PayoutService
   // Called from EventController when event is completed/ends
   public static function setHoldUntil(int $eventId, string $eventEndDate): void
   {
-    // Use string interpolation properly for constants
+    $stmt = self::db()->prepare("SELECT payout_plan FROM events WHERE id = ?");
+    $stmt->execute([$eventId]);
+    $plan = $stmt->fetchColumn();
+
+    if ($plan === Constants::PAYOUT_PLAN_EARLY) {
+      return; // early-plan hold is booking-time-anchored, not tied to end_date
+    }
+
     $holdHours = Constants::PAYOUT_HOLD_HOURS;
     $holdUntil = date(
       'Y-m-d H:i:s',
@@ -453,6 +462,81 @@ class PayoutService
       } else {
         NotificationService::adminPayoutFailed((int) $adminId, $eventId, $eventTitle, $orgName);
       }
+    }
+  }
+
+  // Instant payout for a single booking (used in BookingController::verify)
+  public static function payoutInstant(
+    int    $eventId,
+    int    $organizerId,
+    int    $bookingId,
+    float  $bookingAmount,
+    float  $feePercentage,
+    string $eventTitle
+  ): void {
+    $db    = self::db();
+    $split = self::calculateSplit($bookingAmount, $feePercentage);
+
+    if ($split['organizer_amount'] <= 0) {
+      return; // nothing to send (fully-fee'd or free ticket)
+    }
+
+    $stmt = $db->prepare("
+        SELECT * FROM organizer_payment_details WHERE user_id = ? AND is_verified = 1
+    ");
+    $stmt->execute([$organizerId]);
+    $paymentDetails = $stmt->fetch();
+
+    if (!$paymentDetails || $paymentDetails['is_flagged']) {
+      // No verified bank details / flagged organizer — fall back to the
+      // normal held/queued flow instead of silently losing the money.
+      self::accumulateRevenue($eventId, $organizerId, $bookingAmount, $feePercentage);
+      return;
+    }
+
+    try {
+      $paystack  = new PaystackService();
+      $reference = 'INSTANT-' . $bookingId . '-' . time();
+
+      $transfer = $paystack->initiateTransfer(
+        $split['organizer_amount'],
+        $paymentDetails['paystack_recipient_code'],
+        $reference,
+        "Instant payout: {$eventTitle} (booking #{$bookingId})"
+      );
+
+      $adminStmt = $db->prepare("SELECT id FROM users WHERE role IN ('admin', 'dev') AND is_active = 1");
+      $adminStmt->execute();
+      $admins = $adminStmt->fetchAll(PDO::FETCH_COLUMN);
+
+      TransactionService::payoutSent(
+        $eventId,
+        $organizerId,
+        $split['organizer_amount'],
+        $transfer['transfer_code'],
+        $eventTitle,
+        0,
+        true
+      );
+
+      foreach ($admins as $adminId) {
+        NotificationService::adminPayoutSent(
+          (int) $adminId,
+          $eventId,
+          $eventTitle,
+          $organizerId,
+          $split['organizer_amount'],
+          $transfer['transfer_code']
+        );
+      }
+
+      NotificationService::payoutSent($organizerId, $eventId, $eventTitle, $split['organizer_amount']);
+    } catch (Exception $e) {
+      error_log("Instant payout failed for booking #{$bookingId}: " . $e->getMessage());
+      TransactionService::payoutFailed($eventId, $organizerId, $eventTitle, $e->getMessage());
+      NotificationService::payoutFailed($organizerId, $eventId, $eventTitle, $e->getMessage());
+      // Don't lose the money — fall back to the held queue so the worker retries it.
+      self::accumulateRevenue($eventId, $organizerId, $bookingAmount, $feePercentage);
     }
   }
 }
