@@ -14,7 +14,7 @@
  *   MAIL_FROM_NAME       — display name e.g. Ticketer
  *   MAIL_LOGO_URL        — full Cloudinary URL to your logo image
  *   APP_NAME             — Ticketer
- *   APP_URL              — https://ticketer.website
+ *   APP_URL              — https://app.ticketer.website
  *
  * To rotate keys or switch environments: only touch .env, never this file.
  */
@@ -36,10 +36,10 @@ class MailService
   {
     $this->apiKey    = Environment::get('SENDBYTE_API_KEY');
     $this->apiUrl    = Environment::get('MAIL_API_URL',      'https://api.sendbyte.africa/v1/emails');
-    $this->fromEmail = Environment::get('MAIL_FROM_ADDRESS', 'noreply@mail.ticketer.website');
+    $this->fromEmail = Environment::get('MAIL_FROM_ADDRESS', 'ticket@mail.ticketer.website');
     $this->fromName  = Environment::get('MAIL_FROM_NAME',    'Ticketer');
-    $this->appName   = Environment::get('APP_NAME',          'Ticketer');
-    $this->appUrl    = Environment::get('FRONTEND_URL',           'https://ticketer.website');
+    $this->appName   = Environment::get('APP_NAME',          'TICKETER');
+    $this->appUrl    = Environment::get('FRONTEND_URL',           'https://app.ticketer.website');
     $this->logoUrl   = Environment::get('MAIL_LOGO_URL',     '');
   }
 
@@ -67,6 +67,68 @@ class MailService
       $this->template(
         "Welcome, {$toName}! &#127881;",
         "You're all set. Your {$this->appName} account has been created successfully.",
+        $body
+      )
+    );
+  }
+
+  public function payoutSuccess(
+    string $toEmail, 
+    string $toName, 
+    string $eventTitle,
+    string $payoutDate, 
+    float $payoutAmount
+  ): bool {
+    $formattedAmount = '&#8358;' . number_format($payoutAmount, 2);
+    $formattedDate   = date('D, d M Y', strtotime($payoutDate));
+
+    $body =
+      $this->summaryTable([
+        ['Event',  $eventTitle, false],
+        ['Date',   $formattedDate, false],
+        ['Amount', $formattedAmount, true],
+      ]) .
+      $this->spacer(24) .
+      $this->muted('This is an automated notification. Please do not reply to this email.');
+
+    return $this->send(
+      $toEmail,
+      $toName,
+      "Payout for {$eventTitle}",
+      $this->template(
+        "Payout received! \u{1F4B0}",
+        "Your payout for {$eventTitle} has been processed successfully.",
+        $body
+      )
+    );
+  }
+
+  public function payoutFailed(
+    string $toEmail,
+    string $toName, 
+    string $eventTitle,
+    string $payoutDate, 
+    float $payoutAmount
+  ): bool {
+    $formattedAmount = '&#8358;' . number_format($payoutAmount, 2);
+    $formattedDate   = date('D, d M Y', strtotime($payoutDate));
+
+    $body =
+      $this->summaryTable([
+        ['Event',  $eventTitle, false],
+        ['Date',   $formattedDate, false],
+        ['Amount', $formattedAmount, true],
+      ]) .
+      $this->spacer(24) .
+      $this->muted('This is an automated notification. Please do not reply to this email.');
+
+    return $this->send(
+      $toEmail,
+      $toName,
+      "Payout failed for {$eventTitle}",
+      $this->template(
+        "Payout failed! \u{1F6AB}",
+        "Your payout for {$eventTitle} could not be processed. Please check your payment details and try again.",
         $body
       )
     );
@@ -438,7 +500,7 @@ HTML;
       <td style="padding:5px 0;font-size:14px;color:#3f3f46;line-height:1.6;">{$item}</td>
     </tr>
     HTML;
-  }
+    }
 
     return <<<HTML
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:6px;">

@@ -122,6 +122,38 @@ class QueueService
     ], 0, 'email');
   }
 
+  public static function payoutSuccess(
+    string $email,
+    string $name,
+    string $eventTitle,
+    string $payoutDate,
+    string $payoutAmount
+  ): void {
+    self::push('payout_success', [
+      'email'          => $email,
+      'name'           => $name,
+      'event_title'    => $eventTitle,
+      'payout_date'    => $payoutDate,
+      'payout_amount'  => $payoutAmount,
+    ], 0, 'email');
+  }
+
+  public static function payoutFailed(
+    string $email,
+    string $name,
+    string $eventTitle,
+    string $payoutDate,
+    string $payoutAmount
+  ): void {
+    self::push('payout_failed', [
+      'email'          => $email,
+      'name'           => $name,
+      'event_title'    => $eventTitle,
+      'payout_date'    => $payoutDate,
+      'payout_amount'  => $payoutAmount,
+    ], 0, 'email');
+  }
+
   public static function sendPasswordChanged(string $email, string $name): void
   {
     self::push('send_password_changed', [

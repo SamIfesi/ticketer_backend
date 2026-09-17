@@ -12,6 +12,9 @@
 //
 // HOW TO RUN ON RAILWAY / DOCKER (cron):
 //   * * * * * php /var/www/html/email_worker.php
+// 
+// HOW TO RUN IN EC2 / LINUX (cron):
+//   * * * * * /usr/bin/php /var/www/html/email_worker.php
 
 declare(strict_types=1);
 
@@ -79,7 +82,7 @@ foreach ($jobs as $job) {
 
     switch ($type) {
 
-      // ── OTP (registration + email change + forgot password) ──
+      //  OTP (registration + email change + forgot password) 
       case 'send_otp':
         $success = $mailer->sendOTP(
           $payload['email'],
@@ -89,7 +92,7 @@ foreach ($jobs as $job) {
         );
         break;
 
-      // ── Ticket purchase confirmation ──────────────────────────
+      //  Ticket purchase confirmation 
       case 'send_ticket_confirmation':
         $bookingRef = $payload['booking_reference'] ?? '';
         $success = $mailer->sendTicketConfirmation(
@@ -106,7 +109,7 @@ foreach ($jobs as $job) {
         );
         break;
 
-      // ── Password changed notification ─────────────────────────
+      //  Password changed notification 
       case 'send_password_changed':
         $success = $mailer->sendPasswordChanged(
           $payload['email'],
@@ -114,7 +117,7 @@ foreach ($jobs as $job) {
         );
         break;
 
-      // ── Welcome email ─────────────────────────
+      //  Welcome email 
       case 'send_welcome':
         $success = $mailer->sendWelcome(
           $payload['email'],
@@ -122,7 +125,7 @@ foreach ($jobs as $job) {
         );
         break;
 
-      // ── Forgot password OTP ─────────────────────────
+      //   Forgot password OTP 
       case 'send_forgot_password_otp':
         $success = $mailer->sendForgotPasswordOTP(
           $payload['email'],
@@ -143,7 +146,29 @@ foreach ($jobs as $job) {
           );
           break;
 
-      // ── Unknown type landed in the email queue ────────────────
+        // Payout Successful
+        case 'payout_success':
+          $success = $mailer->payoutSuccess(
+            $payload['email'],
+            $payload['name'],
+            $payload['event_title'],
+            $payload['payout_date'],
+            $payload['payout_amount']
+          );
+          break;
+
+        // Payout failed
+        case 'payout_failed':
+          $success = $mailer->payoutFailed(
+            $payload['email'],
+            $payload['name'],
+            $payload['event_title'],
+            $payload['payout_date'],
+            $payload['payout_amount']
+          );
+          break;
+
+      //   Unknown type landed in the email queue   
       default:
         throw new Exception("Unexpected job type '{$type}' in email queue.");
     }
