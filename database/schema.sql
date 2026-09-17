@@ -149,6 +149,7 @@ CREATE TABLE `events` (
   `total_tickets` int unsigned NOT NULL,
   `checkin_mode` enum('single','multi_day') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'single',
   `checkin_days` tinyint unsigned NOT NULL DEFAULT '1',
+  `payout_plan` ENUM('standard','early') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'standard',
   `platform_fee_percentage` decimal(5,2) DEFAULT NULL,
   `reminder_sent_at` datetime DEFAULT NULL,
   `status` enum('draft','published','cancelled','completed','deleted') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
