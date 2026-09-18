@@ -9,7 +9,6 @@
  *   - Triggering Paystack transfers
  *   - Strike system for cancellations
  *   - Freezing payouts
- *   - Instant payouts for first live event (temporary)
  */
 class PayoutService
 {
@@ -74,23 +73,27 @@ class PayoutService
     float $feePercentage
   ): void {
     $split = self::calculateSplit($bookingAmount, $feePercentage);
-    $stmt = self::db()->prepare("SELECT id FROM event_payouts WHERE event_id = ?");
+    $stmt = self::db()->prepare("SELECT end_date, payout_plan FROM events WHERE id = ?");
     $stmt->execute([$eventId]);
     $event = $stmt->fetch();
 
     $eventEndDate = $event['end_date'] ?? date('Y-m-d H:i:s', strtotime('+1 day'));
+    $payoutPlan   = $event['payout_plan'] ?? Constants::PAYOUT_PLAN_STANDARD;
+    $holdUntil = $payoutPlan === Constants::PAYOUT_PLAN_EARLY
+      ? date('Y-m-d H:i:s', strtotime('+' . Constants::PAYOUT_HOLD_HOURS_EARLY . ' hours'))
+      : date('Y-m-d H:i:s', strtotime('+' . Constants::PAYOUT_HOLD_HOURS . ' hours', strtotime($eventEndDate)));
 
-    // ── Per-event hold: 'early' plan uses a short buffer instead of
-    //    the standard 48hr fraud window. Organizer opts into this
-    //    at event creation — see EventController::store()/update().
-    $holdHours = Constants::PAYOUT_HOLD_HOURS;
-    $earlyPay = Constants::PAYOUT_HOLD_HOURS_EARLY;
-
-    $holdUntil = ($event['payout_plan'] ?? Constants::PAYOUT_PLAN_STANDARD) === Constants::PAYOUT_PLAN_EARLY
-      ? date('Y-m-d H:i:s', strtotime("+{$earlyPay} hours"))
-      : date('Y-m-d H:i:s', strtotime("+{$holdHours} hours", strtotime($eventEndDate)));
-
-    // Upsert — if row exists for this event, add to it
+    // Upsert — if row exists for this event, add to it. hold_until is
+    // only set on the INSERT branch, never slid forward by later
+    // bookings (otherwise a steady trickle of sales could push a
+    // standard-plan payout out indefinitely).
+    //
+    // If this event was already fully paid out (payout_status='paid')
+    // and a fresh booking just landed — the normal case on an 'early'
+    // plan event that's still selling tickets — flip it back to
+    // 'pending' and reset attempts so triggerPayout()/the worker will
+    // release the new delta. See triggerPayout()'s total_paid_out
+    // handling for how the delta itself is computed.
     self::db()->prepare("
             INSERT INTO event_payouts
                 (event_id, organizer_id, gross_revenue, platform_fee_percentage,
@@ -100,6 +103,8 @@ class PayoutService
                 gross_revenue        = gross_revenue + VALUES(gross_revenue),
                 platform_fee_amount  = platform_fee_amount + VALUES(platform_fee_amount),
                 organizer_amount     = organizer_amount + VALUES(organizer_amount),
+                payout_status        = IF(payout_status = 'paid', 'pending', payout_status),
+                attempts             = IF(payout_status = 'paid', 0, attempts),
                 updated_at           = NOW()
         ")->execute([
       $eventId,
@@ -118,10 +123,9 @@ class PayoutService
   {
     $stmt = self::db()->prepare("SELECT payout_plan FROM events WHERE id = ?");
     $stmt->execute([$eventId]);
-    $plan = $stmt->fetchColumn();
-
-    if ($plan === Constants::PAYOUT_PLAN_EARLY) {
-      return; // early-plan hold is booking-time-anchored, not tied to end_date
+    
+    if ($stmt->fetchColumn() === Constants::PAYOUT_PLAN_EARLY) {
+      return;
     }
 
     $holdHours = Constants::PAYOUT_HOLD_HOURS;
@@ -138,6 +142,13 @@ class PayoutService
   // Trigger a payout transfer to the organizer
   // Called by payout_worker.php (auto) or PayoutController (manual)
   // $triggeredBy = null for auto worker, user_id for manual
+  //
+  // Pays only the DELTA between organizer_amount (lifetime accumulated
+  // total) and total_paid_out (what's already been sent). This is what
+  // makes payouts repeatable for 'early' plan events that keep selling
+  // tickets after their first payout — without it, payout_status would
+  // stay 'paid' forever after the first transfer and every booking
+  // after that would silently never reach the organizer.
   public static function triggerPayout(int $eventId, ?int $triggeredBy = null): array
   {
     $db = self::db();
@@ -151,16 +162,25 @@ class PayoutService
       return ['success' => false, 'message' => 'No payout record found for this event.'];
     }
 
-    if ($payout['payout_status'] === Constants::PAYOUT_PAID) {
-      return ['success' => false, 'message' => 'Payout already completed.'];
-    }
-
     if ($payout['payout_status'] === Constants::PAYOUT_FROZEN) {
       return ['success' => false, 'message' => 'Payout is frozen. Unfreeze it first.'];
     }
 
     if ($payout['payout_status'] === Constants::PAYOUT_CANCELLED) {
       return ['success' => false, 'message' => 'Event was cancelled. No payout applicable.'];
+    }
+
+    // NOTE: no early-return on payout_status === 'paid' anymore — a
+    // 'paid' row can still owe a fresh delta (see accumulateRevenue,
+    // which flips 'paid' back to 'pending' when new revenue lands).
+    // If nothing is actually owed, the amountDue <= 0 check below
+    // catches it instead.
+
+    $alreadyPaidOut = (float) ($payout['total_paid_out'] ?? 0);
+    $amountDue      = round((float) $payout['organizer_amount'] - $alreadyPaidOut, 2);
+
+    if ($amountDue <= 0) {
+      return ['success' => false, 'message' => 'Nothing new to pay out — organizer is already settled.'];
     }
 
     // Fetch organizer payment details
@@ -176,10 +196,6 @@ class PayoutService
 
     if ($paymentDetails['is_flagged']) {
       return ['success' => false, 'message' => 'Organizer account is flagged. Payout blocked.'];
-    }
-
-    if ((float) $payout['organizer_amount'] <= 0) {
-      return ['success' => false, 'message' => 'Organizer amount is zero. Nothing to transfer.'];
     }
 
     // Fetch event title for logging
@@ -200,24 +216,29 @@ class PayoutService
       $paystack  = new PaystackService();
       $reference = 'PAYOUT-' . $eventId . '-' . time();
 
-      // Initiate the Paystack transfer
+      // Initiate the Paystack transfer — only for the outstanding delta
       $transfer = $paystack->initiateTransfer(
-        (float) $payout['organizer_amount'],
+        $amountDue,
         $paymentDetails['paystack_recipient_code'],
         $reference,
         "Event payout: {$eventTitle}"
       );
 
-      // Mark as paid
+      // Mark as paid AND accumulate what's been sent. accumulateRevenue()
+      // flips this row back to 'pending' if more bookings land later,
+      // so a subsequent trigger will only owe the next delta, never
+      // the full lifetime sum again.
       $db->prepare("
                 UPDATE event_payouts
                 SET payout_status            = 'paid',
+                    total_paid_out           = total_paid_out + ?,
                     paystack_transfer_code   = ?,
                     paystack_transfer_ref    = ?,
                     paid_at                  = NOW(),
                     updated_at               = NOW()
                 WHERE event_id = ?
             ")->execute([
+        $amountDue,
         $transfer['transfer_code'],
         $reference,
         $eventId,
@@ -227,7 +248,7 @@ class PayoutService
       TransactionService::payoutSent(
         $eventId,
         (int) $payout['organizer_id'],
-        (float) $payout['organizer_amount'],
+        $amountDue,
         $transfer['transfer_code'],
         $eventTitle,
         $triggeredBy ?? 0,
@@ -239,14 +260,24 @@ class PayoutService
         (int) $payout['organizer_id'],
         $eventId,
         $eventTitle,
-        (float) $payout['organizer_amount']
+        $amountDue
       );
 
-      self::queuePayoutEmail(
+      // Notify admins + dev accounts
+      self::notifyPayoutSent(
         $eventId,
+        $eventTitle,
+        (int) $payout['organizer_id'],
+        $amountDue,
+        $transfer['transfer_code'],
+        $db
+      );
+
+      // Email the organizer + every dev account
+      self::queuePayoutEmail(
         (int) $payout['organizer_id'],
         $eventTitle,
-        (float) $payout['organizer_amount'],
+        $amountDue,
         true,
         $db
       );
@@ -255,7 +286,7 @@ class PayoutService
         'success'       => true,
         'message'       => 'Payout initiated successfully.',
         'transfer_code' => $transfer['transfer_code'],
-        'amount'        => $payout['organizer_amount'],
+        'amount'        => $amountDue,
       ];
     } catch (Exception $e) {
       $reason = $e->getMessage();
@@ -279,10 +310,11 @@ class PayoutService
       // Notify all admins
       self::notifyAllAdmins($eventId, $eventTitle, $payout['organizer_id'], $db);
 
+      // Email the organizer + every dev account
       self::queuePayoutEmail(
         (int) $payout['organizer_id'],
         $eventTitle,
-        (float) $payout['organizer_amount'],
+        $amountDue,
         false,
         $db
       );
@@ -302,9 +334,12 @@ class PayoutService
       return ['success' => false, 'message' => 'No payout record found.'];
     }
 
-    if ($payout['payout_status'] === Constants::PAYOUT_PAID) {
-      return ['success' => false, 'message' => 'Cannot freeze — payout already sent.'];
-    }
+    // NOTE: 'paid' no longer means "fully settled forever" — but a
+    // frozen row still blocks future triggers regardless of delta, so
+    // freezing a 'paid' row (to stop a NEW delta from going out) is
+    // intentionally still allowed. Only block freezing if there is
+    // truly nothing outstanding and nothing more can accrue — that's
+    // not knowable here, so we keep this permissive on purpose.
 
     self::db()->prepare("
             UPDATE event_payouts
@@ -482,6 +517,42 @@ class PayoutService
     }
   }
 
+  // Notify all admins AND dev accounts that a payout succeeded.
+  // Separate from notifyAllAdmins() because it fans out to two
+  // different NotificationService methods depending on role, and
+  // covers a different event (success, not failure/flag).
+  private static function notifyPayoutSent(
+    int    $eventId,
+    string $eventTitle,
+    int    $organizerId,
+    float  $amount,
+    string $transferCode,
+    PDO    $db
+  ): void {
+    $orgStmt = $db->prepare("SELECT name FROM users WHERE id = ?");
+    $orgStmt->execute([$organizerId]);
+    $orgName = $orgStmt->fetchColumn() ?: "Organizer #{$organizerId}";
+
+    $stmt = $db->prepare("SELECT id, role FROM users WHERE role IN ('admin', 'dev') AND is_active = 1");
+    $stmt->execute();
+    $recipients = $stmt->fetchAll();
+
+    foreach ($recipients as $r) {
+      if ($r['role'] === Constants::ROLE_DEV) {
+        NotificationService::devPayoutSent((int) $r['id'], $eventId, $eventTitle, $orgName, $amount, $transferCode);
+      } else {
+        NotificationService::adminPayoutSent((int) $r['id'], $eventId, $eventTitle, $orgName, $amount, $transferCode);
+      }
+    }
+  }
+
+  // Queue a payout result email to the organizer and every dev account.
+  // FIX: previously called with 6 arguments in triggerPayout()'s
+  // success path against a 5-parameter signature — an uncaught
+  // ArgumentCountError (extends Error, not Exception, so the
+  // surrounding try/catch never caught it) that killed the request
+  // or worker run immediately after the transfer and DB update had
+  // already gone through.
   private static function queuePayoutEmail(
     int    $organizerId,
     string $eventTitle,
@@ -496,9 +567,9 @@ class PayoutService
     $devStmt = $db->query("SELECT name, email FROM users WHERE role = 'dev' AND is_active = 1");
     $recipients = array_merge($recipients, $devStmt->fetchAll(PDO::FETCH_ASSOC));
 
-    $payoutDate   = date('Y-m-d H:i:s');
-    $amount       = number_format($payoutAmount, 2, '.', '');
-    $queueMethod  = $successful ? 'payoutSuccess' : 'payoutFailed';
+    $payoutDate  = date('Y-m-d H:i:s');
+    $amount      = number_format($payoutAmount, 2, '.', '');
+    $queueMethod = $successful ? 'payoutSuccess' : 'payoutFailed';
 
     foreach ($recipients as $recipient) {
       if (empty($recipient['email'])) {
@@ -511,97 +582,6 @@ class PayoutService
         $eventTitle,
         $payoutDate,
         $amount
-      );
-    }
-  }
-
-  // Instant payout for a single booking (used in BookingController::verify)
-  public static function payoutInstant(
-    int    $eventId,
-    int    $organizerId,
-    int    $bookingId,
-    float  $bookingAmount,
-    float  $feePercentage,
-    string $eventTitle
-  ): void {
-    $db    = self::db();
-    $split = self::calculateSplit($bookingAmount, $feePercentage);
-
-    if ($split['organizer_amount'] <= 0) {
-      return; // nothing to send (fully-fee'd or free ticket)
-    }
-
-    $stmt = $db->prepare("
-        SELECT * FROM organizer_payment_details WHERE user_id = ? AND is_verified = 1
-    ");
-    $stmt->execute([$organizerId]);
-    $paymentDetails = $stmt->fetch();
-
-    if (!$paymentDetails || $paymentDetails['is_flagged']) {
-      // No verified bank details / flagged organizer — fall back to the
-      // normal held/queued flow instead of silently losing the money.
-      self::accumulateRevenue($eventId, $organizerId, $bookingAmount, $feePercentage);
-      return;
-    }
-
-    try {
-      $paystack  = new PaystackService();
-      $reference = 'INSTANT-' . $bookingId . '-' . time();
-
-      $transfer = $paystack->initiateTransfer(
-        $split['organizer_amount'],
-        $paymentDetails['paystack_recipient_code'],
-        $reference,
-        "Instant payout: {$eventTitle} (booking #{$bookingId})"
-      );
-
-      $adminStmt = $db->prepare("SELECT id FROM users WHERE role IN ('admin', 'dev') AND is_active = 1");
-      $adminStmt->execute();
-      $admins = $adminStmt->fetchAll(PDO::FETCH_COLUMN);
-
-      TransactionService::payoutSent(
-        $eventId,
-        $organizerId,
-        $split['organizer_amount'],
-        $transfer['transfer_code'],
-        $eventTitle,
-        0,
-        true
-      );
-
-      foreach ($admins as $adminId) {
-        NotificationService::adminPayoutSent(
-          (int) $adminId,
-          $eventId,
-          $eventTitle,
-          $organizerId,
-          $split['organizer_amount'],
-          $transfer['transfer_code']
-        );
-      }
-
-      self::queuePayoutEmail(
-        $organizerId,
-        $eventTitle,
-        $split['organizer_amount'],
-        true,
-        $db
-      );
-
-      NotificationService::payoutSent($organizerId, $eventId, $eventTitle, $split['organizer_amount']);
-    } catch (Exception $e) {
-      error_log("Instant payout failed for booking #{$bookingId}: " . $e->getMessage());
-      TransactionService::payoutFailed($eventId, $organizerId, $eventTitle, $e->getMessage());
-      NotificationService::payoutFailed($organizerId, $eventId, $eventTitle, $e->getMessage());
-      // Don't lose the money — fall back to the held queue so the worker retries it.
-      self::accumulateRevenue($eventId, $organizerId, $bookingAmount, $feePercentage);
-
-      self::queuePayoutEmail(
-        $organizerId,
-        $eventTitle,
-        $split['organizer_amount'],
-        false,
-        $db
       );
     }
   }
