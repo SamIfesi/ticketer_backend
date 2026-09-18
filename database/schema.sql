@@ -109,6 +109,7 @@ CREATE TABLE `event_payouts` (
   `platform_fee_percentage` decimal(5,2) NOT NULL,
   `platform_fee_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
   `organizer_amount` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `total_paid_out` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
   `payout_status` enum('pending','processing','paid','failed','frozen','cancelled') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `paystack_transfer_code` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `paystack_transfer_ref` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
