@@ -77,7 +77,7 @@ class MailService
     string $toName, 
     string $eventTitle,
     string $payoutDate, 
-    float $payoutAmount
+    string $payoutAmount
   ): bool {
     $formattedAmount = '&#8358;' . number_format($payoutAmount, 2);
     $formattedDate   = date('D, d M Y', strtotime($payoutDate));
@@ -109,7 +109,7 @@ class MailService
     string $toName, 
     string $eventTitle,
     string $payoutDate, 
-    float $payoutAmount
+    string $payoutAmount
   ): bool {
     $formattedAmount = '&#8358;' . number_format($payoutAmount, 2);
     $formattedDate   = date('D, d M Y', strtotime($payoutDate));
