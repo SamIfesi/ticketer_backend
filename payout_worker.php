@@ -48,7 +48,6 @@ $stmt = $db->prepare("
     JOIN events e ON e.id = ep.event_id
     WHERE ep.payout_status IN ('pending', 'failed')
       AND ep.hold_until  <= NOW()
-      AND e.end_date     <= NOW()
       AND e.status NOT IN ('cancelled', 'deleted')
       AND ep.attempts     < 3
     ORDER BY ep.hold_until ASC
