@@ -24,7 +24,8 @@ class AuthMiddleware
     // Reject tokens issued before the user's last "log out other devices"
     // event (password change, etc). The JWT signature alone can't express
     // this — it's stateless — so we check the token's stamped version
-    // against the current value in the DB on every request.
+    // against the current value, read from Redis when available and
+    // falling back to the DB on a cache miss or if Redis is down.
     $currentVersion = $this->currentTokenVersion((int) $payload['id']);
 
     if ($currentVersion === null || (int) ($payload['tv'] ?? -1) !== $currentVersion) {
@@ -35,14 +36,25 @@ class AuthMiddleware
     // e.g. $request->user['id'], $request->user['role']
     $request->user = $payload;
   }
-  
-  // Get the current token version for a user
+
   private function currentTokenVersion(int $userId): ?int
   {
+    $cached = TokenVersionCache::get($userId);
+    if ($cached !== null) {
+      return $cached;
+    }
+
     $stmt = Database::connect()->prepare('SELECT token_version FROM users WHERE id = ?');
     $stmt->execute([$userId]);
     $row = $stmt->fetch();
 
-    return $row ? (int) $row['token_version'] : null;
+    if (!$row) {
+      return null;
+    }
+
+    $version = (int) $row['token_version'];
+    TokenVersionCache::set($userId, $version);
+
+    return $version;
   }
 }
