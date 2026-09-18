@@ -65,6 +65,27 @@ class Request
   }
 
   /**
+   * Best-effort client IP, used as a rate-limiting key for unauthenticated
+   * requests (login, register, password reset).
+   *
+   * X-Forwarded-For is only trusted here because this app expects to sit
+   * behind your own Nginx reverse proxy — if it's ever exposed directly to
+   * the internet without one, this header becomes spoofable by the client
+   * and should be dropped in favor of REMOTE_ADDR alone.
+   */
+  public function ip(): string
+  {
+    $forwardedFor = $this->header('X-Forwarded-For', '');
+    if ($forwardedFor !== '') {
+      // X-Forwarded-For can be a comma-separated chain (client, proxy1, proxy2...)
+      // — the first entry is the original client.
+      return trim(explode(',', $forwardedFor)[0]);
+    }
+
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+  }
+
+  /**
    * Get the Bearer token from the Authorization header,
    * falling back to the HttpOnly cookie set on login.
    *
