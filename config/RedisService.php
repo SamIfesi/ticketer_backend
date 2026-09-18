@@ -4,9 +4,10 @@
  * Thin wrapper around the phpredis extension (the `Redis` class).
  *
  * Accepts either:
- *   - REDIS_URL   — e.g. redis://default:password@host:6379
- *                   (this is what Railway's Redis plugin gives you)
- *   - or REDIS_HOST / REDIS_PORT / REDIS_PASSWORD separately, for local dev
+ *   - REDIS_URL   — e.g. redis://:password@host:6379 (a managed/remote Redis)
+ *   - or REDIS_HOST / REDIS_PORT / REDIS_PASSWORD separately — what you'll
+ *     use for a self-hosted Redis running on the same EC2 box as the app
+ *     (REDIS_HOST=127.0.0.1)
  *
  * Connection failures are caught, not thrown — every call site that uses
  * this treats "Redis unavailable" as a cache miss and falls back to the
