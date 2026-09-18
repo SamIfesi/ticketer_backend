@@ -349,6 +349,7 @@ CREATE TABLE `users` (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `token_version` int unsigned NOT NULL DEFAULT '0',
   `role` enum('attendee','organizer','admin','dev') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'attendee',
   `email_verified` tinyint(1) DEFAULT '0',
   `email_verified_at` datetime DEFAULT NULL,
