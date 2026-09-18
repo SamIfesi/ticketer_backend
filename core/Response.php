@@ -50,6 +50,17 @@ class Response
   }
 
   /**
+   * 429 Too Many Requests — rate limit exceeded
+   */
+  public static function tooManyRequests(string $message = 'Too many requests. Please try again later.', ?int $retryAfterSeconds = null): void
+  {
+    if ($retryAfterSeconds !== null) {
+      header('Retry-After: ' . $retryAfterSeconds);
+    }
+    self::error($message, 429);
+  }
+
+  /**
    * 422 Validation Error — with field-level errors
    */
   public static function validationError(array $errors): void
