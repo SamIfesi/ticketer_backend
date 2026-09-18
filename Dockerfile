@@ -1,6 +1,6 @@
 FROM php:8.2-apache
 
-# ── System dependencies ───────────────────────────────────────
+# System dependencies 
 RUN apt-get update && apt-get install -y \
     curl \
     unzip \
@@ -40,8 +40,7 @@ RUN apt-get update && apt-get install -y \
     cron \
     && rm -rf /var/lib/apt/lists/*
 
-# ── PHP extensions ────────────────────────────────────────────
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+# PHP extensions UN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
@@ -54,36 +53,41 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
         iconv \
         fileinfo
 
-# ── Node.js 20.x ──────────────────────────────────────────────
+# Redis extension (for the token-version cache)
+# Not one of the bundled ext- packages, so it's installed via PECL.
+RUN pecl install redis \
+    && docker-php-ext-enable redis
+
+# Node.js 20.x 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Runtime env vars (must be set BEFORE installing global npm ──
+# Runtime env vars (must be set BEFORE installing global npm
 # packages, otherwise `node -e "require('puppeteer')"` below can't
-# resolve the module — NODE_PATH has to exist at install/verify time) ──
+# resolve the module — NODE_PATH has to exist at install/verify time)
 ENV CHROMIUM_PATH=/usr/bin/chromium \
     NODE_PATH=/usr/lib/node_modules \
     NPM_PATH=/usr/bin/npm \
     APACHE_DOCUMENT_ROOT=/var/www/html
 
-# ── Tell Puppeteer to use system Chromium, not download its own ──
+# Tell Puppeteer to use system Chromium, not download its own
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# ── Install Puppeteer globally ────────────────────────────────
+# Install Puppeteer globally
 # Pinned to 21.x to match what browsershot.js was written against.
 # npm -g on the nodesource Node 20 image installs to /usr/lib/node_modules.
 RUN npm install -g puppeteer@21.0.0 \
     && npm cache clean --force
 
-# ── Verify Puppeteer resolves correctly at build time ─────────
+# Verify Puppeteer resolves correctly at build time─
 RUN node -e "require('puppeteer'); console.log('puppeteer OK');"
 
-# ── Composer ──────────────────────────────────────────────────
+# Composer
 COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 
-# ── Apache config ─────────────────────────────────────────────
+# Apache config
 # Use a2dismod (not raw rm -f) so Apache's own module bookkeeping stays
 # consistent — rm -f only deletes symlinks and can miss files depending
 # on Debian version. The `; true` lets this succeed even if a given
@@ -104,7 +108,7 @@ RUN a2dismod mpm_event mpm_worker 2>/dev/null; true \
 
 RUN sed -i 's|AllowOverride None|AllowOverride All|g' /etc/apache2/apache2.conf
 
-# ── PHP config ────────────────────────────────────────────────
+# PHP config
 RUN echo "upload_max_filesize = 32M"          >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "post_max_size = 32M"             >> /usr/local/etc/php/conf.d/custom.ini \
     && echo "memory_limit = 512M"             >> /usr/local/etc/php/conf.d/custom.ini \
@@ -114,7 +118,7 @@ RUN echo "upload_max_filesize = 32M"          >> /usr/local/etc/php/conf.d/custo
 
 WORKDIR /var/www/html
 
-# ── Cache-friendly Composer install ────────────────────────────
+# Cache-friendly Composer install
 # Copy only the dependency manifest files first so that composer install
 # is only re-run when composer.json or composer.lock actually changes.
 # A CSS edit will no longer bust this layer.
@@ -126,20 +130,20 @@ RUN composer install \
     --no-interaction \
     --no-progress
 
-# ── Now copy the rest of the application ─────────────────────
+# Now copy the rest of the application
 COPY . .
 
-# ── Make browsershot.js executable ───────────────────────────
+# Make browsershot.js executable
 RUN chmod +x /var/www/html/browsershot.js
 
-# ── Storage directories ───────────────────────────────────────
+# Storage directories─
 # Banners live on Cloudinary, so no local storage/banners needed.
 RUN mkdir -p \
     storage/tickets \
     storage/qrcodes \
     storage/logs
 
-# ── Set base permissions first, then storage permissions last ──
+# Set base permissions first, then storage permissions last
 # Global 755 is applied to everything, then storage gets 775 overridden
 # on top so Apache/worker processes can write files. Order matters.
 RUN chown -R www-data:www-data /var/www/html \
@@ -147,7 +151,7 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 775 storage \
     && chown -R www-data:www-data storage
 
-# ── Cron workers ──────────────────────────────────────────────
+# Cron workers
 # Copy the crontab into /etc/cron.d/ (system-wide cron drop-in location).
 # The entrypoint script starts cron as a background daemon before
 # handing control to apache2-foreground.
