@@ -149,11 +149,27 @@ class PayoutService
   // tickets after their first payout — without it, payout_status would
   // stay 'paid' forever after the first transfer and every booking
   // after that would silently never reach the organizer.
+  // Trigger a payout transfer to the organizer
+  // Called by payout_worker.php (auto) or PayoutController (manual)
+  // $triggeredBy = null for auto worker, user_id for manual
+  //
+  // Pays only the DELTA between organizer_amount (lifetime accumulated
+  // total) and total_paid_out (what's already been sent) — this is what
+  // makes payouts repeatable for 'early' plan events that keep selling
+  // tickets after their first payout.
+  //
+  // The claim (SELECT + status check + UPDATE to 'processing') is done
+  // as a single atomic UPDATE ... WHERE status IN (...) instead of a
+  // read-then-write pair, so two near-simultaneous calls for the same
+  // event (double-click, retried request, etc.) can't both pass the
+  // check and both send a transfer.
   public static function triggerPayout(int $eventId, ?int $triggeredBy = null): array
   {
     $db = self::db();
 
-    // Fetch payout row
+    // Fetch the row first just to give a useful error message if it
+    // doesn't exist or is frozen/cancelled — this read is NOT what
+    // decides whether we're allowed to proceed, the atomic claim below is.
     $stmt = $db->prepare("SELECT * FROM event_payouts WHERE event_id = ?");
     $stmt->execute([$eventId]);
     $payout = $stmt->fetch();
@@ -170,17 +186,29 @@ class PayoutService
       return ['success' => false, 'message' => 'Event was cancelled. No payout applicable.'];
     }
 
-    // NOTE: no early-return on payout_status === 'paid' anymore — a
-    // 'paid' row can still owe a fresh delta (see accumulateRevenue,
-    // which flips 'paid' back to 'pending' when new revenue lands).
-    // If nothing is actually owed, the amountDue <= 0 check below
-    // catches it instead.
-
     $alreadyPaidOut = (float) ($payout['total_paid_out'] ?? 0);
     $amountDue      = round((float) $payout['organizer_amount'] - $alreadyPaidOut, 2);
 
     if ($amountDue <= 0) {
       return ['success' => false, 'message' => 'Nothing new to pay out — organizer is already settled.'];
+    }
+
+    // ── ATOMIC CLAIM ──
+    // This single UPDATE is the real gate. It only succeeds (rowCount
+    // > 0) if payout_status is STILL 'pending' or 'failed' at the
+    // instant it runs — MySQL serializes concurrent UPDATEs to the
+    // same row, so if two requests race here, only one of them can
+    // possibly see rowCount() > 0. The loser sees 0 and stops.
+    $claim = $db->prepare("
+        UPDATE event_payouts
+        SET payout_status = 'processing', attempts = attempts + 1,
+            triggered_by = ?, updated_at = NOW()
+        WHERE event_id = ? AND payout_status IN ('pending', 'failed')
+    ");
+    $claim->execute([$triggeredBy, $eventId]);
+
+    if ($claim->rowCount() === 0) {
+      return ['success' => false, 'message' => 'Payout is already being processed or is not currently payable. Please refresh and check its status.'];
     }
 
     // Fetch organizer payment details
@@ -191,10 +219,16 @@ class PayoutService
     $paymentDetails = $stmt->fetch();
 
     if (!$paymentDetails) {
+      // We already claimed the row (status = 'processing') — release it
+      // back so a future attempt (once bank details are added) can retry.
+      $db->prepare("UPDATE event_payouts SET payout_status = 'failed', failure_reason = ?, failed_at = NOW() WHERE event_id = ?")
+        ->execute(['Organizer has no verified bank details.', $eventId]);
       return ['success' => false, 'message' => 'Organizer has no verified bank details.'];
     }
 
     if ($paymentDetails['is_flagged']) {
+      $db->prepare("UPDATE event_payouts SET payout_status = 'failed', failure_reason = ?, failed_at = NOW() WHERE event_id = ?")
+        ->execute(['Organizer account is flagged.', $eventId]);
       return ['success' => false, 'message' => 'Organizer account is flagged. Payout blocked.'];
     }
 
@@ -203,14 +237,6 @@ class PayoutService
     $stmt->execute([$eventId]);
     $event = $stmt->fetch();
     $eventTitle = $event['title'] ?? "Event #{$eventId}";
-
-    // Mark as processing
-    $db->prepare("
-            UPDATE event_payouts
-            SET payout_status = 'processing', attempts = attempts + 1,
-                triggered_by = ?, updated_at = NOW()
-            WHERE event_id = ?
-        ")->execute([$triggeredBy, $eventId]);
 
     try {
       $paystack  = new PaystackService();
@@ -291,7 +317,8 @@ class PayoutService
     } catch (Exception $e) {
       $reason = $e->getMessage();
 
-      // Mark as failed
+      // Mark as failed — releases the claim so a later retry (worker's
+      // next run, or an admin manually re-triggering) can pick it up.
       $db->prepare("
                 UPDATE event_payouts
                 SET payout_status  = 'failed',
@@ -397,9 +424,26 @@ class PayoutService
   }
 
   // Cancel a payout (when event is cancelled — no money to organizer)
+  // Cancel a payout (when event is cancelled — no money to organizer,
+  // beyond whatever was already sent).
+  //
+  // If total_paid_out > 0 when this fires, money has ALREADY left the
+  // platform for this organizer — cancelling the payout row stops any
+  // future delta from going out, but it does NOT claw back what's
+  // already been transferred. That has to happen manually (dispute the
+  // organizer directly, hold their next payout on another event, etc.)
+  // This alert exists so that gap is never silent.
   public static function cancelPayout(int $eventId): void
   {
-    self::db()->prepare("
+    $db = self::db();
+
+    // Check how much (if anything) was already paid out BEFORE we
+    // touch the row, so we know whether to alert.
+    $stmt = $db->prepare("SELECT total_paid_out, organizer_id FROM event_payouts WHERE event_id = ?");
+    $stmt->execute([$eventId]);
+    $existing = $stmt->fetch();
+
+    $db->prepare("
             INSERT INTO event_payouts (event_id, organizer_id, gross_revenue,
                 platform_fee_percentage, platform_fee_amount, organizer_amount,
                 payout_status, hold_until)
@@ -409,6 +453,30 @@ class PayoutService
                 payout_status = 'cancelled',
                 updated_at    = NOW()
         ")->execute([$eventId]);
+
+    $alreadyPaidOut = (float) ($existing['total_paid_out'] ?? 0);
+
+    if ($alreadyPaidOut > 0) {
+      $stmt = $db->prepare("SELECT title FROM events WHERE id = ?");
+      $stmt->execute([$eventId]);
+      $eventTitle = $stmt->fetchColumn() ?: "Event #{$eventId}";
+
+      $orgStmt = $db->prepare("SELECT name FROM users WHERE id = ?");
+      $orgStmt->execute([$existing['organizer_id']]);
+      $orgName = $orgStmt->fetchColumn() ?: "Organizer #{$existing['organizer_id']}";
+
+      $adminStmt = $db->prepare("SELECT id FROM users WHERE role = 'admin' AND is_active = 1");
+      $adminStmt->execute();
+      foreach ($adminStmt->fetchAll(PDO::FETCH_COLUMN) as $adminId) {
+        NotificationService::adminPayoutClawbackNeeded(
+          (int) $adminId,
+          $eventId,
+          $eventTitle,
+          $orgName,
+          $alreadyPaidOut
+        );
+      }
+    }
   }
 
   // Strike system — increment cancellation count
@@ -564,7 +632,7 @@ class PayoutService
     $stmt->execute([$organizerId]);
     $recipients = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $devStmt = $db->query("SELECT name, email FROM users WHERE role = 'dev' AND is_active = 1");
+    $devStmt = $db->query("SELECT name, email FROM users WHERE role IN ('admin', 'dev') AND is_active = 1");
     $recipients = array_merge($recipients, $devStmt->fetchAll(PDO::FETCH_ASSOC));
 
     $payoutDate  = date('Y-m-d H:i:s');
