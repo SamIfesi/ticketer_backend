@@ -93,6 +93,7 @@ class PayoutController
             SELECT
                 ep.event_id,
                 ep.organizer_amount,
+                ep.total_paid_out,
                 ep.gross_revenue,
                 ep.platform_fee_amount,
                 ep.platform_fee_percentage,
@@ -101,6 +102,7 @@ class PayoutController
                 ep.attempts,
                 e.title      AS event_title,
                 e.end_date   AS event_end_date,
+                e.payout_plan,
                 u.name       AS organizer_name,
                 u.email      AS organizer_email,
                 opd.is_flagged,
@@ -111,7 +113,7 @@ class PayoutController
             LEFT JOIN organizer_payment_details opd ON opd.user_id = ep.organizer_id
             WHERE ep.payout_status IN ('pending', 'failed')
               AND ep.hold_until <= NOW()
-              AND e.end_date    <= NOW()
+              AND (ep.organizer_amount - ep.total_paid_out) > 0
             ORDER BY ep.hold_until ASC
         ");
     $stmt->execute();
