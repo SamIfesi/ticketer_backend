@@ -35,6 +35,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 require_once __DIR__ . '/config/Database.php';
 require_once __DIR__ . '/config/Constants.php';
+require_once __DIR__ . '/config/RedisService.php';
 
 require_once __DIR__ . '/core/Request.php';
 require_once __DIR__ . '/core/Response.php';
@@ -44,6 +45,7 @@ require_once __DIR__ . '/helpers/ValidationHelper.php';
 require_once __DIR__ . '/helpers/TokenHelper.php';
 
 require_once __DIR__ . '/services/JWTService.php';
+require_once __DIR__ . '/services/TokenVersionCache.php';
 require_once __DIR__ . '/services/PaystackService.php';
 require_once __DIR__ . '/services/QRCodeService.php';
 require_once __DIR__ . '/services/MailService.php';
