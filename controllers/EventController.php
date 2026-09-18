@@ -50,6 +50,15 @@ class EventController
 
     $where = implode(' AND ', $conditions);
 
+    $result = EventCache::rememberList(
+      [
+        'page' => $page,
+        'limit' => $limit,
+        'search' => $search,
+        'category' => $categoryId,
+        'date' => $dateFilter,
+      ],
+      function () use ($conditions, $params, $where, $page, $limit, $offset) {
     // Get total count for pagination
     $countStmt = $this->db->prepare("SELECT COUNT(*) FROM events e WHERE {$where}");
     $countStmt->execute($params);
@@ -87,7 +96,7 @@ class EventController
         ");
     $stmt->execute($params);
 
-    Response::success([
+    return [
       'events'     => $stmt->fetchAll(),
       'pagination' => [
         'total'       => $total,
@@ -95,7 +104,10 @@ class EventController
         'limit'       => $limit,
         'total_pages' => (int) ceil($total / $limit),
       ],
-    ]);
+    ];
+  });
+
+    Response::success($result);
   }
 
   // GET /api/events/:id
@@ -106,10 +118,12 @@ class EventController
   public function show(array $params): void
   {
     $identifier = $params['id'];
-    $isNumeric = ctype_digit((string) $identifier);
-    $column    = $isNumeric ? 'e.id' : 'e.slug';
 
-    $stmt = $this->db->prepare("
+    $event = EventCache::rememberDetail($identifier, function () use ($identifier) {
+      $isNumeric = ctype_digit((string) $identifier);
+      $column    = $isNumeric ? 'e.id' : 'e.slug';
+
+      $stmt = $this->db->prepare("
             SELECT
                 e.id,
                 e.title,
@@ -144,7 +158,7 @@ class EventController
     $event = $stmt->fetch();
 
     if (!$event) {
-      Response::notFound('Event not found.');
+        return null;
     }
 
     // Also fetch the ticket types for this event
@@ -162,7 +176,14 @@ class EventController
       $type['available'] = (int) $type['quantity'] - (int) $type['quantity_sold'];
     }
 
-    $event['ticket_types'] = $ticketTypes;
+      $event['ticket_types'] = $ticketTypes;
+
+      return $event;
+    });
+
+    if (!$event) {
+      Response::notFound('Event not found.');
+    }
 
     Response::success(['event' => $event]);
   }
@@ -288,6 +309,8 @@ class EventController
     // Fetch and return the newly created event
     $stmt = $this->db->prepare('SELECT * FROM events WHERE id = ?');
     $stmt->execute([$eventId]);
+
+    EventCache::bumpListVersion(); // new event → listing pages need refreshing
 
     Response::success(['event' => $stmt->fetch()], 'Event created successfully.', 201);
   }
@@ -477,6 +500,12 @@ class EventController
     }
     // ── END NEW ──
 
+    // Edited events can be looked up under either their old or new slug
+    // (slug itself is never changed by update()), so clear both the id
+    // and slug keys, and let listing pages pick up the change too.
+    EventCache::forgetDetail($eventId, $updatedEvent['slug']);
+    EventCache::bumpListVersion();
+
     Response::success(['event' => $updatedEvent], 'Event updated successfully.');
   }
 
@@ -528,6 +557,9 @@ class EventController
       "/my-bookings"
     );
     // ── END NEW ──
+
+    EventCache::forgetDetail($eventId, $event['slug']);
+    EventCache::bumpListVersion();
 
     Response::success(null, 'Event cancelled successfully. All existing bookings and tickets are preserved.');
   }
