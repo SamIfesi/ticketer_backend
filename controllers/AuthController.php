@@ -11,9 +11,30 @@ class AuthController
     $this->db      = Database::connect();
   }
 
+  /**
+   * Checks a rate-limit bucket and halts the request with 429 if it's
+   * exceeded. See RateLimiter — fails open if Redis is unreachable.
+   */
+  private function enforceRateLimit(string $key, int $maxAttempts, int $windowSeconds): void
+  {
+    $result = RateLimiter::attempt($key, $maxAttempts, $windowSeconds);
+
+    if (!$result['allowed']) {
+      Response::tooManyRequests(
+        'Too many attempts. Please try again in a few minutes.',
+        $result['retry_after']
+      );
+    }
+  }
+
   // POST /api/auth/register
   public function register(): void
   {
+    // Limits new-account spam from a single source. Deliberately IP-only
+    // (no email key) — the email doesn't belong to a real account yet at
+    // this point, so there's nothing meaningful to key it against.
+    $this->enforceRateLimit('register:' . $this->request->ip(), 5, 3600);
+
     $name     = trim($this->request->input('name', ''));
     $email    = trim($this->request->input('email', ''));
     $password = $this->request->input('password', '');
@@ -171,6 +192,14 @@ class AuthController
       Response::validationError($errors);
     }
 
+    // Two separate buckets: IP catches one attacker hitting many accounts,
+    // email catches one account being hit from many/rotating IPs. Checked
+    // before the DB lookup so a flood of attempts never even reaches it.
+    $ipKey    = 'login:ip:' . $this->request->ip();
+    $emailKey = 'login:email:' . strtolower($email);
+    $this->enforceRateLimit($ipKey, 20, 900);   // 20 / 15 min per IP
+    $this->enforceRateLimit($emailKey, 6, 900); //  6 / 15 min per account
+
     $stmt = $this->db->prepare('
             SELECT id, name, email, password_hash, role, is_active, email_verified, token_version
             FROM users WHERE email = ?
@@ -185,6 +214,11 @@ class AuthController
     if (!$user['is_active']) {
       Response::error('Your account has been deactivated. Please contact support.', 403);
     }
+
+    // Correct password proves this was the legitimate owner — don't leave
+    // their own earlier typos counted against them for the next 15 min.
+    RateLimiter::clear($ipKey);
+    RateLimiter::clear($emailKey);
 
     unset($user['password_hash'], $user['is_active']);
 
@@ -244,6 +278,11 @@ class AuthController
       Response::validationError($errors);
     }
 
+    // Caps how many OTP emails one account/source can trigger — protects
+    // both the recipient's inbox from spam and your email-sending quota.
+    $this->enforceRateLimit('forgot-otp:ip:' . $this->request->ip(), 10, 3600);
+    $this->enforceRateLimit('forgot-otp:email:' . strtolower($email), 3, 3600);
+
     // check if email exist in database
     $stmt = $this->db->prepare('SELECT id, name FROM users WHERE email = ?');
     $stmt->execute([$email]);
@@ -278,6 +317,13 @@ class AuthController
     if (empty($email) || empty($otp)) {
       Response::validationError(['email' => 'Email is required.', 'otp' => 'OTP is required.']);
     }
+
+    // A 6-digit OTP is only 1,000,000 combinations — without a tight limit
+    // here this endpoint is brute-forceable well within the OTP's
+    // 30-minute expiry window. This is the most important rate limit
+    // added today; everything else is abuse prevention, this one is
+    // guarding an actual account-takeover path.
+    $this->enforceRateLimit('verify-otp:' . strtolower($email), 6, 900); // 6 / 15 min
 
     $stmt = $this->db->prepare("
             SELECT id, user_id, expires_at FROM email_verifications
