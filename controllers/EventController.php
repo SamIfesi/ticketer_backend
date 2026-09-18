@@ -213,6 +213,10 @@ class EventController
       ? max(1, min(30, (int) ($input['checkin_days'] ?? 1)))
       : 1;
 
+    $payoutPlan = in_array($input['payout_plan'] ?? '', [Constants::PAYOUT_PLAN_STANDARD, Constants::PAYOUT_PLAN_EARLY], true)
+      ? $input['payout_plan']
+      : Constants::PAYOUT_PLAN_STANDARD;
+
     if (!empty($errors)) {
       Response::validationError($errors);
     }
@@ -250,9 +254,9 @@ class EventController
             INSERT INTO events
                 (organizer_id, category_id, title, slug, description, location, banner_image,
                  contact_email, contact_phone, start_date, end_date, total_tickets, status,
-                 checkin_mode, checkin_days)
+                 checkin_mode, checkin_days, payout_plan)
             VALUES
-                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
     $stmt->execute([
@@ -271,6 +275,7 @@ class EventController
       $input['status']       ?? Constants::EVENT_DRAFT,
       $checkinMode,
       $checkinDays,
+      $payoutPlan
     ]);
 
     $eventId = $this->db->lastInsertId();
@@ -331,11 +336,18 @@ class EventController
 
     $checkinMode = null; // null => COALESCE keeps existing DB value
     $checkinDays = null;
+    $payoutPlan = null; // null => COALESCE keeps existing DB value
 
     if ($checkinModeProvided) {
       $checkinMode = in_array($input['checkin_mode'], [Constants::CHECKIN_MODE_SINGLE, Constants::CHECKIN_MODE_MULTI_DAY], true)
         ? $input['checkin_mode']
         : Constants::CHECKIN_MODE_SINGLE;
+    }
+
+    if (array_key_exists('payout_plan', $input)) {
+      $payoutPlan = in_array($input['payout_plan'], [Constants::PAYOUT_PLAN_STANDARD, Constants::PAYOUT_PLAN_EARLY], true)
+        ? $input['payout_plan']
+        : Constants::PAYOUT_PLAN_STANDARD;
     }
 
     if ($checkinModeProvided || $checkinDaysProvided) {
@@ -429,7 +441,8 @@ class EventController
         total_tickets = COALESCE(?, total_tickets),
         status        = COALESCE(?, status),
         checkin_mode  = COALESCE(?, checkin_mode),
-        checkin_days  = COALESCE(?, checkin_days)
+        checkin_days  = COALESCE(?, checkin_days),
+        payout_plan   = COALESCE(?, payout_plan)
       WHERE id = ?
     ");
 
@@ -449,6 +462,7 @@ class EventController
       $input['status']        ?? null,
       $checkinMode,
       $checkinDays,
+      $payoutPlan,
       $eventId,
     ]);
 
