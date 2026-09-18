@@ -155,6 +155,10 @@ class BookingController
 
         $this->db->commit();
 
+        // Ticket counts on this event's detail page just changed —
+        // clear it so the next viewer sees accurate availability.
+        EventCache::forgetDetail($ticketType['event_id']);
+
         // Send confirmation email outside the transaction
         QueueService::sendTicketConfirmation(
           $userEmail,
@@ -544,6 +548,10 @@ class BookingController
         }
 
         $this->db->commit();
+
+        // trg_booking_paid just moved quantity_sold — clear this event's
+        // detail cache so availability shown next is accurate.
+        EventCache::forgetDetail((int) $booking['event_id']);
       } catch (Exception $e) {
         if ($this->db->inTransaction()) {
           $this->db->rollBack();
