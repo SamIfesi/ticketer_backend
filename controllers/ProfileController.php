@@ -174,7 +174,7 @@ class ProfileController
     }
 
     // Fetch current password hash
-    $stmt = $this->db->prepare('SELECT password_hash, name, email FROM users WHERE id = ?');
+    $stmt = $this->db->prepare('SELECT password_hash, name, email, role FROM users WHERE id = ?');
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
 
@@ -188,15 +188,41 @@ class ProfileController
       Response::error('New password must be different from your current password.', 400);
     }
 
-    $this->db->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-      ->execute([password_hash($newPassword, PASSWORD_BCRYPT), $userId]);
+    // Bump token_version so every JWT issued before this moment — on any
+    // device — fails AuthMiddleware's version check on its next request.
+    $this->db->prepare('
+        UPDATE users
+        SET password_hash = ?, token_version = token_version + 1
+        WHERE id = ?
+    ')->execute([password_hash($newPassword, PASSWORD_BCRYPT), $userId]);
+
+    $stmt = $this->db->prepare('SELECT token_version FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $newVersion = (int) $stmt->fetch()['token_version'];
+
+    // Write-through: update the cache immediately rather than waiting for
+    // it to expire, so other devices are rejected on their very next
+    // request instead of up to TTL_SECONDS later.
+    TokenVersionCache::set($userId, $newVersion);
 
     // Queue the notification email instead of sending directly
     QueueService::sendPasswordChanged($user['email'], $user['name']);
 
     $this->logActivity($userId, 'password_change', 'Password changed successfully');
 
-    Response::success(null, 'Password changed successfully.');
+    // Re-issue a token for THIS session, stamped with the new version,
+    // so the device the user is changing the password from stays logged
+    // in while every other device gets signed out.
+    $token = JWTService::generate([
+      'id'            => $userId,
+      'email'         => $user['email'],
+      'role'          => $user['role'],
+      'name'          => $user['name'],
+      'token_version' => $newVersion,
+    ]);
+    JWTService::setAuthCookie($token);
+
+    Response::success(['token' => $token], 'Password changed successfully. You have been logged out of all other devices.');
   }
 
   // POST /api/profile/change-email
