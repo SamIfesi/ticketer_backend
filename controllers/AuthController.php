@@ -48,7 +48,7 @@ class AuthController
 
     // Fetch new user
     $stmt = $this->db->prepare('
-            SELECT id, name, email, role, email_verified, created_at FROM users WHERE id = ?
+            SELECT id, name, email, role, email_verified, created_at, token_version FROM users WHERE id = ?
         ');
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
@@ -172,7 +172,7 @@ class AuthController
     }
 
     $stmt = $this->db->prepare('
-            SELECT id, name, email, password_hash, role, is_active, email_verified
+            SELECT id, name, email, password_hash, role, is_active, email_verified, token_version
             FROM users WHERE email = ?
         ');
     $stmt->execute([$email]);
@@ -352,16 +352,25 @@ class AuthController
 
     $userId = $user['id'];
 
-    // Update password and clear the reset token
+    // Update password, clear the reset token, and bump token_version so
+    // any JWT issued before this reset — on any device — is rejected by
+    // AuthMiddleware on its next request.
     $hashedPassword = password_hash($newPassword, PASSWORD_BCRYPT);
     $this->db->prepare("
     UPDATE users
     SET password_hash         = ?,
         reset_token           = NULL,
         reset_token_expires_at = NULL,
+        token_version         = token_version + 1,
         updated_at            = NOW()
     WHERE id = ?
   ")->execute([$hashedPassword, $userId]);
+
+    // Write-through the cache immediately so any still-active sessions for
+    // this user are rejected on their next request, not after TTL_SECONDS.
+    $stmt = $this->db->prepare('SELECT token_version FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    TokenVersionCache::set($userId, (int) $stmt->fetch()['token_version']);
 
     $this->logActivity($userId, 'password_reset', 'Password reset successfully');
 
