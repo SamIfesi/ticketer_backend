@@ -242,6 +242,15 @@ class PayoutService
         (float) $payout['organizer_amount']
       );
 
+      self::queuePayoutEmail(
+        $eventId,
+        (int) $payout['organizer_id'],
+        $eventTitle,
+        (float) $payout['organizer_amount'],
+        true,
+        $db
+      );
+
       return [
         'success'       => true,
         'message'       => 'Payout initiated successfully.',
@@ -269,6 +278,14 @@ class PayoutService
 
       // Notify all admins
       self::notifyAllAdmins($eventId, $eventTitle, $payout['organizer_id'], $db);
+
+      self::queuePayoutEmail(
+        (int) $payout['organizer_id'],
+        $eventTitle,
+        (float) $payout['organizer_amount'],
+        false,
+        $db
+      );
 
       return ['success' => false, 'message' => 'Payout failed: ' . $reason];
     }
@@ -465,6 +482,39 @@ class PayoutService
     }
   }
 
+  private static function queuePayoutEmail(
+    int    $organizerId,
+    string $eventTitle,
+    float  $payoutAmount,
+    bool   $successful,
+    PDO    $db
+  ): void {
+    $stmt = $db->prepare("SELECT name, email FROM users WHERE id = ? AND is_active = 1");
+    $stmt->execute([$organizerId]);
+    $recipients = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $devStmt = $db->query("SELECT name, email FROM users WHERE role = 'dev' AND is_active = 1");
+    $recipients = array_merge($recipients, $devStmt->fetchAll(PDO::FETCH_ASSOC));
+
+    $payoutDate   = date('Y-m-d H:i:s');
+    $amount       = number_format($payoutAmount, 2, '.', '');
+    $queueMethod  = $successful ? 'payoutSuccess' : 'payoutFailed';
+
+    foreach ($recipients as $recipient) {
+      if (empty($recipient['email'])) {
+        continue;
+      }
+
+      QueueService::$queueMethod(
+        $recipient['email'],
+        $recipient['name'] ?: 'User',
+        $eventTitle,
+        $payoutDate,
+        $amount
+      );
+    }
+  }
+
   // Instant payout for a single booking (used in BookingController::verify)
   public static function payoutInstant(
     int    $eventId,
@@ -530,6 +580,14 @@ class PayoutService
         );
       }
 
+      self::queuePayoutEmail(
+        $organizerId,
+        $eventTitle,
+        $split['organizer_amount'],
+        true,
+        $db
+      );
+
       NotificationService::payoutSent($organizerId, $eventId, $eventTitle, $split['organizer_amount']);
     } catch (Exception $e) {
       error_log("Instant payout failed for booking #{$bookingId}: " . $e->getMessage());
@@ -537,6 +595,14 @@ class PayoutService
       NotificationService::payoutFailed($organizerId, $eventId, $eventTitle, $e->getMessage());
       // Don't lose the money — fall back to the held queue so the worker retries it.
       self::accumulateRevenue($eventId, $organizerId, $bookingAmount, $feePercentage);
+
+      self::queuePayoutEmail(
+        $organizerId,
+        $eventTitle,
+        $split['organizer_amount'],
+        false,
+        $db
+      );
     }
   }
 }
