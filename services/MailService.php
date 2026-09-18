@@ -87,6 +87,7 @@ class MailService
         ['Event',  $eventTitle, false],
         ['Date',   $formattedDate, false],
         ['Amount', $formattedAmount, true],
+        ['Status', 'Successful', true],
       ]) .
       $this->spacer(24) .
       $this->muted('This is an automated notification. Please do not reply to this email.');
@@ -96,7 +97,7 @@ class MailService
       $toName,
       "Payout for {$eventTitle}",
       $this->template(
-        "Payout received! \u{1F4B0}",
+        "Payout received! &#127881",
         "Your payout for {$eventTitle} has been processed successfully.",
         $body
       )
@@ -118,6 +119,7 @@ class MailService
         ['Event',  $eventTitle, false],
         ['Date',   $formattedDate, false],
         ['Amount', $formattedAmount, true],
+        ['Status', 'Failed', true],
       ]) .
       $this->spacer(24) .
       $this->muted('This is an automated notification. Please do not reply to this email.');
@@ -127,7 +129,7 @@ class MailService
       $toName,
       "Payout failed for {$eventTitle}",
       $this->template(
-        "Payout failed! \u{1F6AB}",
+        "Payout failed! \u{0078}",
         "Your payout for {$eventTitle} could not be processed. Please check your payment details and try again.",
         $body
       )
@@ -525,5 +527,14 @@ HTML;
   private function spacer(int $px): string
   {
     return "<div style=\"height:{$px}px;font-size:0;line-height:0;\">&nbsp;</div>";
+  }
+
+  private function success(string $text): string
+  {
+    return "<span style=\"font-size:14px;color:#22c55e;\">{$text}</span>";
+  }
+  private function failed(string $text): string
+  {
+    return "<span style=\"font-size:14px;color:#ef4444;\">{$text}</span>";
   }
 }
