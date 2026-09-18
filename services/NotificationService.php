@@ -380,6 +380,25 @@ class NotificationService
     );
   }
 
+  public static function adminPayoutClawbackNeeded(
+    int    $adminId,
+    int    $eventId,
+    string $eventTitle,
+    string $organizerName,
+    float  $amountAlreadyPaid
+  ): void {
+    $formatted = '₦' . number_format($amountAlreadyPaid, 2);
+    self::push(
+      $adminId,
+      'admin_payout_clawback_needed',
+      "Action needed — {$eventTitle} cancelled after payout",
+      "\"{$eventTitle}\" was cancelled, but {$formatted} was already sent to {$organizerName} before cancellation. This was NOT automatically reversed — recover it manually.",
+      "/admin/payouts",
+      $eventId,
+      'event'
+    );
+  }
+
   // DEVELOPER NOTIFICATIONS FOR PAYOUT
   public static function devPayoutSent(
     int    $devId,
