@@ -46,6 +46,8 @@ require_once __DIR__ . '/helpers/TokenHelper.php';
 
 require_once __DIR__ . '/services/JWTService.php';
 require_once __DIR__ . '/services/TokenVersionCache.php';
+require_once __DIR__ . '/services/EventCache.php';
+require_once __DIR__ . '/services/RateLimiter.php';
 require_once __DIR__ . '/services/PaystackService.php';
 require_once __DIR__ . '/services/QRCodeService.php';
 require_once __DIR__ . '/services/MailService.php';
