@@ -178,7 +178,7 @@ class GoogleAuthController
   {
     $stmt = $this->db->prepare('
             SELECT id, name, email, role, avatar, avatar_public_id,
-                   google_id, auth_provider, email_verified, is_active, created_at
+                   google_id, auth_provider, email_verified, is_active, created_at, token_version
             FROM users WHERE google_id = ?
         ');
     $stmt->execute([$googleId]);
@@ -190,7 +190,7 @@ class GoogleAuthController
   {
     $stmt = $this->db->prepare('
             SELECT id, name, email, role, avatar, avatar_public_id,
-                   google_id, auth_provider, email_verified, is_active, created_at
+                   google_id, auth_provider, email_verified, is_active, created_at, token_version
             FROM users WHERE email = ?
         ');
     $stmt->execute([$email]);
@@ -201,7 +201,7 @@ class GoogleAuthController
   private function fetchUserById(int $userId): array
   {
     $stmt = $this->db->prepare('
-            SELECT id, name, email, role, avatar, email_verified, created_at
+            SELECT id, name, email, role, avatar, email_verified, created_at, token_version
             FROM users WHERE id = ?
         ');
     $stmt->execute([$userId]);
