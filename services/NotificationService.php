@@ -358,7 +358,7 @@ class NotificationService
       'application'
     );
   }
-  
+
   // ADMIN NOTIFICATIONS FOR PAYOUT
   public static function adminPayoutSent(
     int    $adminId,
@@ -374,6 +374,27 @@ class NotificationService
       'admin_payout_sent',
       "Payout Sent — {$eventTitle}",
       "Payout of {$formatted} for \"{$eventTitle}\" sent to {$organizerName}. Transfer: {$transferCode}.",
+      "/admin/payouts",
+      $eventId,
+      'event'
+    );
+  }
+
+  // DEVELOPER NOTIFICATIONS FOR PAYOUT
+  public static function devPayoutSent(
+    int    $devId,
+    int    $eventId,
+    string $eventTitle,
+    string $organizerName,
+    float  $amount,
+    string $transferCode
+  ): void {
+    $formatted = '₦' . number_format($amount, 2);
+    self::push(
+      $devId,
+      'dev_payout_sent',
+      "[DEV] Payout Sent — {$eventTitle}",
+      "Payout of {$formatted} for \"{$eventTitle}\" sent to {$organizerName}. Transfer: {$transferCode}. Event #{$eventId}.",
       "/admin/payouts",
       $eventId,
       'event'
