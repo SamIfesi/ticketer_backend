@@ -100,14 +100,24 @@ class JWTService
     $isLocal    = $appEnv === 'development';
     $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
 
-    setcookie('token', $token, [
+    $cookieOptions = [
       'expires'  => time() + $expiry,
       'path'     => '/',
-      'domain'   => $cookieHost,
       'secure'   => !$isLocal,
       'httponly' => true,
       'samesite' => 'Lax',
-    ]);
+    ];
+
+    // ".localhost" isn't a valid cookie Domain, and a mismatched Domain
+    // makes the browser silently drop the Set-Cookie header entirely —
+    // so on local dev, omit the attribute rather than passing it through.
+    // With no Domain, the browser defaults it to the exact host that set
+    // the cookie, which is exactly what local dev needs anyway.
+    if (!$isLocal) {
+      $cookieOptions['domain'] = $cookieHost;
+    }
+
+    setcookie('token', $token, $cookieOptions);
   }
 
   /**
@@ -121,14 +131,19 @@ class JWTService
     $isLocal    = $appEnv === 'development';
     $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
 
-    setcookie('token', '', [
+    $cookieOptions = [
       'expires'  => time() - 3600,
       'path'     => '/',
-      'domain'   => $cookieHost,
       'secure'   => !$isLocal,
       'httponly' => true,
       'samesite' => 'Lax',
-    ]);
+    ];
+
+    if (!$isLocal) {
+      $cookieOptions['domain'] = $cookieHost;
+    }
+
+    setcookie('token', '', $cookieOptions);
   }
 
   private static function base64UrlEncode(string $data): string
