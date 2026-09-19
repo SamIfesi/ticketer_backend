@@ -40,7 +40,8 @@ RUN apt-get update && apt-get install -y \
     cron \
     && rm -rf /var/lib/apt/lists/*
 
-# PHP extensions UN docker-php-ext-configure gd --with-freetype --with-jpeg \
+# PHP extensions 
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo \
         pdo_mysql \
