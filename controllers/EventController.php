@@ -52,23 +52,20 @@ class EventController
 
     $result = EventCache::rememberList(
       [
-        'page' => $page,
-        'limit' => $limit,
-        'search' => $search,
-        'category' => $categoryId,
-        'date' => $dateFilter,
+        'page' => $page, 'limit' => $limit, 'search' => $search,
+        'category' => $categoryId, 'date' => $dateFilter,
       ],
       function () use ($conditions, $params, $where, $page, $limit, $offset) {
-    // Get total count for pagination
-    $countStmt = $this->db->prepare("SELECT COUNT(*) FROM events e WHERE {$where}");
-    $countStmt->execute($params);
-    $total = (int) $countStmt->fetchColumn();
+        // Get total count for pagination
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM events e WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
 
-    // Get paginated events with organizer name and category name
-    $params[] = $limit;
-    $params[] = $offset;
+        // Get paginated events with organizer name and category name
+        $params[] = $limit;
+        $params[] = $offset;
 
-    $stmt = $this->db->prepare("
+        $stmt = $this->db->prepare("
             SELECT
                 e.id,
                 e.title,
@@ -94,18 +91,19 @@ class EventController
             ORDER BY CASE WHEN e.end_date < NOW() THEN 1 ELSE 0 END ASC, e.start_date ASC
             LIMIT ? OFFSET ?
         ");
-    $stmt->execute($params);
+        $stmt->execute($params);
 
-    return [
-      'events'     => $stmt->fetchAll(),
-      'pagination' => [
-        'total'       => $total,
-        'page'        => $page,
-        'limit'       => $limit,
-        'total_pages' => (int) ceil($total / $limit),
-      ],
-    ];
-  });
+        return [
+          'events'     => $stmt->fetchAll(),
+          'pagination' => [
+            'total'       => $total,
+            'page'        => $page,
+            'limit'       => $limit,
+            'total_pages' => (int) ceil($total / $limit),
+          ],
+        ];
+      }
+    );
 
     Response::success($result);
   }
@@ -154,27 +152,27 @@ class EventController
               AND e.status = 'published'
               AND e.deleted_at IS NULL
         ");
-    $stmt->execute([$identifier]);
-    $event = $stmt->fetch();
+      $stmt->execute([$identifier]);
+      $event = $stmt->fetch();
 
-    if (!$event) {
+      if (!$event) {
         return null;
-    }
+      }
 
-    // Also fetch the ticket types for this event
-    $stmt = $this->db->prepare("
+      // Also fetch the ticket types for this event
+      $stmt = $this->db->prepare("
             SELECT id, name, description, price, quantity, quantity_sold, sales_end_at
             FROM ticket_types
             WHERE event_id = ?
             ORDER BY price ASC
         ");
-    $stmt->execute([$event['id']]);
-    $ticketTypes = $stmt->fetchAll();
+      $stmt->execute([$event['id']]);
+      $ticketTypes = $stmt->fetchAll();
 
-    // Add available count to each ticket type
-    foreach ($ticketTypes as &$type) {
-      $type['available'] = (int) $type['quantity'] - (int) $type['quantity_sold'];
-    }
+      // Add available count to each ticket type
+      foreach ($ticketTypes as &$type) {
+        $type['available'] = (int) $type['quantity'] - (int) $type['quantity_sold'];
+      }
 
       $event['ticket_types'] = $ticketTypes;
 
