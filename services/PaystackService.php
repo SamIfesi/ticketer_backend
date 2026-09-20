@@ -6,7 +6,7 @@ class PaystackService
 
   public function __construct()
   {
-    $this->secretKey = Environment::get('PAYSTACK_SECRET_KEY');
+    $this->secretKey = Environment::get('LIVE_PAYSTACK_SECRET_KEY');
   }
 
   // Initialize a transaction (unchanged)
