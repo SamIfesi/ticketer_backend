@@ -29,6 +29,12 @@ require_once __DIR__ . '/services/NotificationService.php';
 require_once __DIR__ . '/services/TransactionService.php';
 require_once __DIR__ . '/services/PayoutService.php';
 
+// Split mode: Paystack settles organizers directly. Nothing to transfer.
+if (Constants::splitMode()) {
+  echo "[" . date('Y-m-d H:i:s') . "] PAYOUT_MODE=split — Transfer API disabled. Exiting.\n";
+  exit;
+}
+
 $db = Database::connect();
 
 echo "[" . date('Y-m-d H:i:s') . "] Payout worker started.\n";
