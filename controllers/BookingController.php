@@ -217,6 +217,11 @@ class BookingController
       // 9. Initialize transaction with Paystack
       try {
         $paystack    = new PaystackService();
+        // Split mode: look up the organizer's subaccount BEFORE opening the
+        // DB transaction, so a failure here never leaves a pending booking.
+        $subaccount = $totalAmount > 0
+          ? $this->organizerSubaccount((int) $ticketType['event_id'])
+          : null;
         $transaction = $paystack->initializeTransaction(
           $userEmail,
           $totalAmount,
@@ -225,7 +230,8 @@ class BookingController
             'booking_id'  => $bookingId,
             'event_title' => $ticketType['event_title'],
             'quantity'    => $quantity,
-          ]
+          ],
+          $subaccount
         );
 
         // ── NEW: transaction audit log ──
@@ -268,6 +274,29 @@ class BookingController
     }
   }
 
+  // Split mode only: returns the organizer's Paystack subaccount code.
+  // Returns null in transfer mode (normal, un-split payment).
+  private function organizerSubaccount(int $eventId): ?string
+  {
+    if (!Constants::splitMode()) {
+      return null;
+    }
+
+    $stmt = $this->db->prepare("
+      SELECT opd.paystack_subaccount_code
+      FROM events e
+      JOIN organizer_payment_details opd ON opd.user_id = e.organizer_id
+      WHERE e.id = ? AND opd.is_verified = 1
+    ");
+    $stmt->execute([$eventId]);
+    $code = $stmt->fetchColumn();
+
+    if (!$code) {
+      Response::error('This event cannot accept payments yet. The organizer has not completed payment setup.', 400);
+    }
+    return $code;
+  }
+
   public function resume(): void
   {
     $userId       = $this->request->user['id'];
@@ -302,6 +331,7 @@ class BookingController
       $paystack    = new PaystackService();
       $userEmail   = $this->request->user['email'];
       $newReference = TokenHelper::generatePaystackReference();
+      $subaccount = $this->organizerSubaccount((int) $existing['event_id']);
 
       $transaction = $paystack->initializeTransaction(
         $userEmail,
@@ -311,7 +341,8 @@ class BookingController
           'booking_id'  => $existing['id'],
           'event_title' => $existing['event_title'],
           'quantity'    => $existing['quantity'],
-        ]
+        ],
+        $subaccount
       );
 
       // Update the booking with the new reference
