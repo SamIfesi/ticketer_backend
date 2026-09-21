@@ -10,18 +10,25 @@ class PaystackService
   }
 
   // Initialize a transaction (unchanged)
-  public function initializeTransaction(string $email, float $amount, string $reference, array $metadata = []): array
-  {
-    $body = json_encode([
+  public function initializeTransaction(
+    string $email, float $amount, string $reference, array $metadata = [], ?string $subaccountCode = null
+  ): array {
+    $payload = [
       'email'     => $email,
       'amount'    => (int) ($amount * 100),
       'reference' => $reference,
       'metadata'  => $metadata,
       'currency'  => 'NGN',
-    ]);
+    ];
 
-    $response = $this->makeRequest('POST', '/transaction/initialize', $body);
+    $commission = Environment:: get('PLATFORM_COMMISSION_PERCENT', 0);
+    if ($subaccountCode) {
+      $payload['subaccount']         = $subaccountCode;
+      $payload['transaction_charge'] = $commission;  // Ticketer takes 0 flat
+      $payload['bearer']             = 'subaccount'; // organizer bears Paystack fees
+    }
 
+    $response = $this->makeRequest('POST', '/transaction/initialize', json_encode($payload));
     if (!$response['status']) {
       throw new Exception($response['message'] ?? 'Failed to initialize payment.');
     }
