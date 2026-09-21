@@ -39,6 +39,7 @@ class PayoutService
   // Priority: event-level override → organizer default
   public static function getFeePercentage(int $eventId, int $organizerId): float
   {
+    if (Constants::splitMode()) return 0.0;
     // Check if event has its own override
     $stmt = self::db()->prepare("SELECT platform_fee_percentage FROM events WHERE id = ?");
     $stmt->execute([$eventId]);
@@ -83,6 +84,11 @@ class PayoutService
       ? date('Y-m-d H:i:s', strtotime('+' . Constants::PAYOUT_HOLD_HOURS_EARLY . ' hours'))
       : date('Y-m-d H:i:s', strtotime('+' . Constants::PAYOUT_HOLD_HOURS . ' hours', strtotime($eventEndDate)));
 
+    // Split mode rows are already settled by Paystack — never queue them
+    $initialStatus = Constants::splitMode()
+      ? Constants::PAYOUT_SPLIT_SETTLED
+      : Constants::PAYOUT_PENDING;
+
     // Upsert — if row exists for this event, add to it. hold_until is
     // only set on the INSERT branch, never slid forward by later
     // bookings (otherwise a steady trickle of sales could push a
@@ -98,7 +104,7 @@ class PayoutService
             INSERT INTO event_payouts
                 (event_id, organizer_id, gross_revenue, platform_fee_percentage,
                  platform_fee_amount, organizer_amount, payout_status, hold_until)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
                 gross_revenue        = gross_revenue + VALUES(gross_revenue),
                 platform_fee_amount  = platform_fee_amount + VALUES(platform_fee_amount),
@@ -113,6 +119,7 @@ class PayoutService
       $feePercentage,
       $split['platform_fee'],
       $split['organizer_amount'],
+      $initialStatus,
       $holdUntil,
     ]);
   }
@@ -123,7 +130,7 @@ class PayoutService
   {
     $stmt = self::db()->prepare("SELECT payout_plan FROM events WHERE id = ?");
     $stmt->execute([$eventId]);
-    
+
     if ($stmt->fetchColumn() === Constants::PAYOUT_PLAN_EARLY) {
       return;
     }
@@ -165,6 +172,12 @@ class PayoutService
   // check and both send a transfer.
   public static function triggerPayout(int $eventId, ?int $triggeredBy = null): array
   {
+    // Split mode: Paystack already settles the organizer directly.
+    // The Transfer API must never be called from here.
+    if (Constants::splitMode()) {
+      return ['success' => false, 'message' => 'Split mode is active: the organizer is settled directly by Paystack. Nothing to trigger.'];
+    }
+
     $db = self::db();
 
     // Fetch the row first just to give a useful error message if it
@@ -359,6 +372,10 @@ class PayoutService
 
     if (!$payout) {
       return ['success' => false, 'message' => 'No payout record found.'];
+    }
+
+    if ($payout['payout_status'] === Constants::PAYOUT_SPLIT_SETTLED) {
+      return ['success' => false, 'message' => 'Cannot freeze — this event is settled directly to the organizer by Paystack (split mode).'];
     }
 
     // NOTE: 'paid' no longer means "fully settled forever" — but a
