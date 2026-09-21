@@ -160,15 +160,27 @@ class OrganizerPaymentController
       $accountName = $resolved['account_name'];
 
       // Step 2 — Create transfer recipient (for payouts)
-      $recipient     = $paystack->createTransferRecipient($accountName, $accountNumber, $bankCode);
-      $recipientCode = $recipient['recipient_code'];
+      // In split mode this is optional: a Starter Business may not be
+      // allowed to create recipients, and split mode doesn't need one.
+      // Organizers onboarded like this get a NULL recipient code that
+      // must be backfilled before switching back to transfer mode.
+      $recipientCode = null;
+      try {
+        $recipient     = $paystack->createTransferRecipient($accountName, $accountNumber, $bankCode);
+        $recipientCode = $recipient['recipient_code'];
+      } catch (Exception $e) {
+        if (!Constants::splitMode()) {
+          throw $e;
+        }
+        error_log('Transfer recipient skipped (split mode): ' . $e->getMessage());
+      }
 
       // Step 3 — Create subaccount (for split payment records)
       $subaccount     = $paystack->createSubaccount(
         $user['name'],
         $bankCode,
         $accountNumber,
-        $feePercent
+        Constants::splitMode() ? 0.0 : $feePercent
       );
       $subaccountCode = $subaccount['subaccount_code'];
       $subaccountId   = $subaccount['id'] ?? null;
@@ -250,7 +262,7 @@ class OrganizerPaymentController
         $user['name'],
         $bankCode,
         $accountNumber,
-        $feePercent
+        Constants::splitMode() ? 0.0 : $feePercent
       );
 
       // Update database
