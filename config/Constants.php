@@ -44,6 +44,13 @@ class Constants
   const PAYOUT_FROZEN    = 'frozen';
   const PAYOUT_CANCELLED = 'cancelled';
 
+  const PAYOUT_SPLIT_SETTLED = 'split_settled';
+
+  public static function splitMode(): bool
+  {
+    return Environment::get('PAYOUT_MODE', 'transfer') === 'split';
+  }
+
   // ── STRIKE SYSTEM ────────────────────────────────────────────
   const ORGANIZER_STRIKE_THRESHOLD = 3;
 
