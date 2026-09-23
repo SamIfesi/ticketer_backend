@@ -226,48 +226,19 @@ class TicketPDFController
     ]);
   }
 
-  private function ensureQueuedAndDefer(int $bookingId): void
-  {
-    if (!$this->hasQueuedPdfJob($bookingId)) {
-      // Nothing pending/processing (first request ever, or the
-      // earlier job exhausted its retries and landed in 'failed') —
-      // requeue immediately, no artificial delay needed since
-      // payment already happened.
-      QueueService::generateTicket($bookingId, 0);
-    }
-
-    Response::error(
-      'Your ticket is still being generated — this can take a little while right after payment. It will be ready shortly.',
-      425
-    );
-  }
-
-  /**
-   * True if a 'generate_ticket' job for this booking is already
-   * pending or currently processing, so we don't stack duplicate
-   * jobs (and duplicate Chromium launches) behind every retried
-   * download click.
-   */
-  private function hasQueuedPdfJob(int $bookingId): bool
-  {
-    $stmt = $this->db->prepare("
-            SELECT 1 FROM jobs
-            WHERE queue   = 'pdf'
-              AND type    = 'generate_ticket'
-              AND status IN ('pending', 'processing')
-              AND payload = ?
-            LIMIT 1
-        ");
-    $stmt->execute([json_encode(['booking_id' => $bookingId])]);
-    return (bool) $stmt->fetchColumn();
-  }
+  // PRIVATE HELPERS
 
   private function serveSinglePdf(int $ticketId, int $bookingId): void
   {
     $ticket = $this->fetchTicketOwnership($ticketId);
     if (!PDFService::singleTicketExists($ticket['ticket_number'])) {
-      $this->ensureQueuedAndDefer($bookingId);
-      return;
+      try {
+        PDFService::generateTickets($bookingId);
+      } catch (Exception $e) {
+        error_log("serveSinglePdf generation error for ticket #{$ticketId}: " . $e->getMessage());
+        Response::error('Could not generate ticket. Please try again shortly.', 500);
+        return;
+      }
     }
 
     $filePath = PDFService::getSingleTicketPath($ticket['ticket_number']);
@@ -297,8 +268,13 @@ class TicketPDFController
   {
     $ticket = $this->fetchTicketOwnership($ticketId);
     if (!PDFService::singleTicketPngExists($ticket['ticket_number'])) {
-      $this->ensureQueuedAndDefer($bookingId);
-      return;
+      try {
+        PDFService::generateTickets($bookingId);
+      } catch (Exception $e) {
+        error_log("serveSinglePng generation error for ticket #{$ticketId}: " . $e->getMessage());
+        Response::error('Could not generate ticket image. Please try again shortly.', 500);
+        return;
+      }
     }
 
     $filePath = PDFService::getSingleTicketPngPath($ticket['ticket_number']);
