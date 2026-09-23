@@ -43,8 +43,6 @@ services:
       retries: 5
     networks:
       - ticketer-net
-    # Remove this block once things are stable if you don't want
-    # the DB port reachable from outside the VPS at all.
     ports:
       - "127.0.0.1:${DATABASE_PORT}:3306"
 
@@ -52,7 +50,6 @@ services:
     image: redis:7-alpine
     container_name: ticketer-redis
     restart: always
-    # Standard start without password requirements
     command: redis-server
     volumes:
       - redis_data:/data
