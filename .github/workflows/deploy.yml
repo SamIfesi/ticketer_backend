@@ -13,14 +13,20 @@ jobs:
     steps:
       - name: Deploying code via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG
           script: |
             cd /home/ubuntu/ticketer_backend
             git pull origin main
-            docker compose up -d --build app
+            export IMAGE_TAG="$IMAGE_TAG"
+            docker compose pull app
+            docker compose up -d app
+            docker image prune -f
 
       - name: Health check
         run: |
