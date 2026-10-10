@@ -1,11 +1,14 @@
 name: Deploy to EC2
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Deploying code via SSH
@@ -18,3 +21,16 @@ jobs:
             cd /home/ubuntu/ticketer_backend
             git pull origin main
             docker compose up -d --build app
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS https://api-aws.ticketer.website/api/health; then
+              echo "Healthy"
+              exit 0
+            fi
+            echo "Not ready yet, retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed"
+          exit 1
