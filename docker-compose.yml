@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   app:
+    image: ghcr.io/samifesi/ticketer_backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
