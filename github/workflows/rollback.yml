@@ -1,0 +1,49 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Full 40-character commit SHA to roll back to"
+        required: true
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the version looks valid
+        env:
+          TAG: ${{ inputs.image_tag }}
+        run: |
+          if ! echo "$TAG" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Tag must be a full 40-character commit SHA"
+            exit 1
+          fi
+
+      - name: Roll back on the server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            cd /home/ubuntu/ticketer_backend
+            export IMAGE_TAG="$IMAGE_TAG"
+            docker compose pull app
+            docker compose up -d app
+
+      - name: Health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS https://api-aws.ticketer.website/api/health; then
+              echo "Healthy"
+              exit 0
+            fi
+            echo "Not ready yet, retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed"
+          exit 1
