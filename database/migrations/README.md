@@ -1,0 +1,1 @@
+One numbered .sql file per change, e.g. 001_add_something.sql. Never edit a file after it has been applied.
