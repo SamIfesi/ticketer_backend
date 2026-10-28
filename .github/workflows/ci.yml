@@ -57,7 +57,7 @@ jobs:
         with:
           context: .
           push: true
-                    tags: |
+          tags: |
             ghcr.io/samifesi/ticketer_backend:${{ github.sha }}
             ghcr.io/samifesi/ticketer_backend:latest
             ghcr.io/samifesi/ticketer_backend:v${{ github.run_number }}
