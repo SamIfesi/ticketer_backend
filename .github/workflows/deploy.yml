@@ -26,7 +26,7 @@ jobs:
             export IMAGE_TAG="$IMAGE_TAG"
             docker compose pull app
             docker compose up -d app
-            docker image prune -f
+            docker image prune -af
 
       - name: Health check
         run: |
