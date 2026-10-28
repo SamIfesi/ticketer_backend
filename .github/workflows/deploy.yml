@@ -14,7 +14,7 @@ jobs:
       - name: Deploying code via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_TAG: v${{ github.event.workflow_run.run_number }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
