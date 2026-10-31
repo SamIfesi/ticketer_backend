@@ -692,9 +692,9 @@ class BookingController
     // Only the attendee, the event organizer, or dev can view this
     $isOwner     = (int) $booking['user_id']      === $userId;
     $isOrganizer = (int) $booking['organizer_id'] === $userId;
-    $isDev       = $role === Constants::ROLE_DEV;
+    $isAdmin     = in_array($role, [Constants::ROLE_ADMIN, Constants::ROLE_DEV], true);
 
-    if (!$isOwner && !$isOrganizer && !$isDev) {
+    if (!$isOwner && !$isOrganizer && !$isAdmin) {
       Response::forbidden('You do not have access to this booking.');
     }
 
