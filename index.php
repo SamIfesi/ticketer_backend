@@ -58,6 +58,7 @@ require_once __DIR__ . '/services/TransactionService.php';
 require_once __DIR__ . '/services/PayoutService.php';
 require_once __DIR__ . '/services/PDFService.php';
 require_once __DIR__ . '/services/CloudinaryService.php';
+require_once __DIR__ . '/services/BookingFulfillment.php';
 
 require_once __DIR__ . '/middleware/AuthMiddleware.php';
 require_once __DIR__ . '/middleware/RoleMiddleware.php';
@@ -81,6 +82,7 @@ require_once __DIR__ . '/controllers/CloudinaryController.php';
 require_once __DIR__ . '/controllers/GoogleAuthController.php';
 require_once __DIR__ . '/controllers/EventMetaController.php';
 require_once __DIR__ . '/controllers/SitemapController.php';
+require_once __DIR__ . '/controllers/WebhookController.php';
 
 
 // 3. BOOTSTRAP
@@ -121,6 +123,7 @@ require_once __DIR__ . '/routes/organizer_payment.php';
 require_once __DIR__ . '/routes/payouts.php';
 require_once __DIR__ . '/routes/cloudinary.php';
 require_once __DIR__ . '/routes/dev.php';
+require_once __DIR__ . '/routes/webhooks.php';
 
 
 // 6. DISPATCH
