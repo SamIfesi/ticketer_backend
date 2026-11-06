@@ -369,258 +369,347 @@ class BookingController
   //
   // quantity_sold is handled by trg_booking_paid trigger which
   // fires automatically when payment_status is updated to 'paid'
+  // public function verify(): void
+  // {
+  //   $reference = trim($this->request->input('reference', ''));
+  //   $userId    = $this->request->user['id'];
+
+  //   if (empty($reference)) {
+  //     Response::validationError(['reference' => 'Payment reference is required.']);
+  //   }
+
+  //   // 1. Find the booking by reference
+  //   $stmt = $this->db->prepare("
+  //           SELECT
+  //               b.*,
+  //               tt.name      AS ticket_type_name,
+  //               tt.id        AS ticket_type_id,
+  //               tt.quantity  AS ticket_type_quantity,
+  //               tt.quantity_sold AS ticket_type_quantity_sold,
+  //               e.title      AS event_title,
+  //               e.location   AS event_location,
+  //               e.start_date AS event_start_date,
+  //               e.organizer_id,
+  //               u.name       AS user_name,
+  //               u.email      AS user_email
+  //           FROM bookings b
+  //           JOIN ticket_types tt ON tt.id = b.ticket_type_id
+  //           JOIN events e        ON e.id  = b.event_id
+  //           JOIN users u         ON u.id  = b.user_id
+  //           WHERE b.paystack_reference = ?
+  //       ");
+  //   $stmt->execute([$reference]);
+  //   $booking = $stmt->fetch();
+
+  //   if (!$booking) {
+  //     Response::notFound('Booking not found.');
+  //   }
+
+  //   // 2. Make sure this booking belongs to the requesting user
+  //   if ((int) $booking['user_id'] !== $userId) {
+  //     Response::forbidden('This booking does not belong to you.');
+  //   }
+
+  //   // 3. If already paid, return success without reprocessing
+  //   //    (handles page refresh on success screen)
+  //   if ($booking['payment_status'] === Constants::PAYMENT_PAID) {
+  //     Response::success([
+  //       'booking_id'     => (int) $booking['id'],
+  //       'booking_number' => $booking['booking_number'],
+  //       'event'          => $booking['event_title'],
+  //       'tickets_issued' => (int) $booking['quantity'],
+  //     ], 'Booking already confirmed.');
+  //     return;
+  //   }
+
+  //   // 4. Reject if booking is in a terminal failed/cancelled state
+  //   if (in_array($booking['payment_status'], ['failed', 'cancelled', 'refunded'])) {
+  //     Response::error('This booking can no longer be processed.', 400);
+  //     return;
+  //   }
+
+  //   // 5. Verify with Paystack
+  //   try {
+  //     $paystack    = new PaystackService();
+  //     $transaction = $paystack->verifyTransaction($reference);
+
+  //     // 6. Check Paystack confirms payment was successful
+  //     if ($transaction['status'] !== 'success') {
+  //       $this->db->prepare("
+  //                   UPDATE bookings SET payment_status = 'failed' WHERE id = ?
+  //               ")->execute([$booking['id']]);
+
+  //       // ── NEW ── log failed transaction and notify user
+  //       TransactionService::paymentFailed($booking, 'Paystack returned: ' . $transaction['status']);
+  //       NotificationService::bookingFailed(
+  //         (int)$booking['user_id'],
+  //         (int)$booking['id'],
+  //         (int)$booking['event_id'],
+  //         $booking['event_title']
+  //       );
+  //       // ── END NEW ──
+
+  //       Response::error('Payment was not successful. Please try again.', 400);
+  //       return;
+  //     }
+
+  //     // 7. Double-check amount paid matches what we expected
+  //     //    Prevents paying ₦1 for a ₦10,000 ticket
+  //     $amountPaidKobo = (int) $transaction['amount'];
+  //     $expectedKobo   = (int) ($booking['total_amount'] * 100);
+
+  //     if ($amountPaidKobo < $expectedKobo) {
+  //       error_log("Amount mismatch on reference {$reference}: paid {$amountPaidKobo}, expected {$expectedKobo}");
+  //       Response::error('Payment amount does not match. Please contact support.', 400);
+  //       return;
+  //     }
+
+  //     // 8. Mark booking as paid inside a transaction
+  //     //    trg_booking_paid trigger fires here and increments quantity_sold
+  //     $this->db->beginTransaction();
+
+  //     try {
+  //       $updateStmt = $this->db->prepare("
+  //                   UPDATE bookings
+  //                   SET payment_status = 'paid', paid_at = NOW()
+  //                   WHERE id = ? AND payment_status = 'pending'
+  //               ");
+  //       $updateStmt->execute([$booking['id']]);
+
+  //       // If no rows were updated, another request already processed this
+  //       if ($updateStmt->rowCount() === 0) {
+  //         $this->db->rollBack();
+  //         Response::success([
+  //           'booking_id'     => (int) $booking['id'],
+  //           'booking_number' => $booking['booking_number'],
+  //           'event'          => $booking['event_title'],
+  //           'tickets_issued' => (int) $booking['quantity'],
+  //         ], 'Booking already confirmed.');
+  //         return;
+  //       }
+
+  //       // ── NEW: fee calculation + audit + notifications + payout accumulation ──
+  //       $feePercentage      = PayoutService::getFeePercentage((int)$booking['event_id'], (int)$booking['organizer_id']);
+  //       $split           = PayoutService::calculateSplit((float)$booking['total_amount'], $feePercentage);
+
+
+  //       TransactionService::paymentConfirmed(
+  //         $booking,
+  //         $split['platform_fee'],
+  //         $split['organizer_amount'],
+  //         $transaction['status']
+  //       );
+
+  //       PayoutService::accumulateRevenue(
+  //         (int)   $booking['event_id'],
+  //         (int)   $booking['organizer_id'],
+  //         (float) $booking['total_amount'],
+  //         (float) $feePercentage
+  //       );
+
+  //       NotificationService::bookingConfirmed(
+  //         (int)   $booking['user_id'],
+  //         (int)   $booking['id'],
+  //         $booking['event_title'],
+  //         (int)   $booking['event_id'],
+  //         (int)   $booking['quantity'],
+  //         (float) $booking['total_amount']
+  //       );
+
+  //       NotificationService::newBookingReceived(
+  //         (int)   $booking['organizer_id'],
+  //         (int)   $booking['id'],
+  //         $booking['user_name'],
+  //         $booking['event_title'],
+  //         (int)   $booking['event_id'],
+  //         (int)   $booking['quantity'],
+  //         (float) $booking['total_amount']
+  //       );
+
+  //       // Low tickets warning — fires if ≤10% tickets remain
+  //       $salesStmt = $this->db->prepare("
+  //           SELECT quantity, quantity_sold
+  //           FROM ticket_types
+  //           WHERE id = ?
+  //       ");
+  //       $salesStmt->execute([$booking['ticket_type_id']]);
+  //       $sales = $salesStmt->fetch();
+  //       if ($sales) {
+  //         $remaining = (int) $sales['quantity'] - (int) $sales['quantity_sold'];
+  //         $pct = $sales['quantity'] > 0 ? ($remaining / $sales['quantity']) : 1;
+  //         if ($pct <= 0.10 && $remaining > 0) {
+  //           NotificationService::lowTicketsWarning(
+  //             (int) $booking['organizer_id'],
+  //             (int) $booking['event_id'],
+  //             $booking['event_title'],
+  //             $remaining,
+  //             (int) $sales['quantity']
+  //           );
+  //         }
+  //       }
+  //       // ── END NEW ──
+
+  //       // 9. Issue one ticket row per quantity purchased.
+  //       // This is the ONLY place tickets are created for paid bookings,
+  //       // so ticket_number generation belongs here — one per real ticket id.
+  //       $tickets = [];
+  //       $stmt    = $this->db->prepare("
+  //                   INSERT INTO tickets (booking_id, user_id, event_id, qr_token)
+  //                   VALUES (?, ?, ?, ?)
+  //               ");
+  //       for ($i = 0; $i < (int) $booking['quantity']; $i++) {
+  //         $qrToken = TokenHelper::generateQRToken();
+  //         $stmt->execute([
+  //           $booking['id'],
+  //           $booking['user_id'],
+  //           $booking['event_id'],
+  //           $qrToken,
+  //         ]);
+
+  //         $ticketId     = (int) $this->db->lastInsertId();
+  //         $ticketNumber = TokenHelper::generateDisplayId($ticketId, 'TK');
+  //         $this->db->prepare("UPDATE tickets SET ticket_number = ? WHERE id = ?")
+  //           ->execute([$ticketNumber, $ticketId]);
+
+  //         $tickets[] = [
+  //           'id'            => $ticketId,
+  //           'ticket_number' => $ticketNumber,
+  //           'qr_token'      => $qrToken,
+  //         ];
+  //       }
+
+  //       $this->db->commit();
+
+  //       // trg_booking_paid just moved quantity_sold — clear this event's
+  //       // detail cache so availability shown next is accurate.
+  //       EventCache::forgetDetail((int) $booking['event_id']);
+  //     } catch (Exception $e) {
+  //       if ($this->db->inTransaction()) {
+  //         $this->db->rollBack();
+  //       }
+  //       error_log('Booking verify transaction error: ' . $e->getMessage());
+  //       Response::error('Could not confirm booking. Please contact support.', 500);
+  //       return;
+  //     }
+
+  //     // 10. Queue ticket PDF generation (runs after email to avoid Chromium contention)
+  //     // Delayed by 10s to let the email job start first and
+  //     // avoid two Chromium instances competing for resources.
+  //     QueueService::generateTicket((int) $booking['id'], 10);
+
+  //     // 11. Send confirmation email outside the transaction
+  //     QueueService::sendTicketConfirmation(
+  //       $booking['user_email'],
+  //       $booking['user_name'],
+  //       $booking['event_title'],
+  //       $booking['event_start_date'],
+  //       $booking['event_location'],
+  //       $booking['ticket_type_name'],
+  //       (int) $booking['quantity'],
+  //       (float) $booking['total_amount'],
+  //       Environment::get('FRONTEND_URL') . '/my-bookings',
+  //       $booking['paystack_reference']
+  //     );
+
+  //     Response::success([
+  //       'booking_id'     => (int) $booking['id'],
+  //       'booking_number' => $booking['booking_number'],
+  //       'event'          => $booking['event_title'],
+  //       'tickets_issued' => count($tickets),
+  //     ], 'Payment confirmed! Your tickets have been issued.');
+  //   } catch (Exception $e) {
+  //     error_log('Paystack verify error: ' . $e->getMessage());
+  //     Response::error('Could not verify payment. Please contact support.', 500);
+  //   }
+  // }
+
+
+  // POST /api/bookings/verify
+  // Protected: attendee or dev
+  //
+  // Thin wrapper: ownership check -> BookingFulfillment::run().
+  // All the real work (Paystack check, paid flip, tickets, payouts,
+  // notifications, emails) lives in BookingFulfillment so the webhook and
+  // the reconciliation worker behave identically.
+  //
+  // IMPORTANT: this method never marks a booking 'failed'. A non-success
+  // Paystack status (abandoned/pending) just means "not paid yet" — the
+  // booking stays pending so a later webhook/retry can still fulfil it.
   public function verify(): void
   {
     $reference = trim($this->request->input('reference', ''));
-    $userId    = $this->request->user['id'];
+    $userId    = (int) $this->request->user['id'];
 
     if (empty($reference)) {
       Response::validationError(['reference' => 'Payment reference is required.']);
     }
 
-    // 1. Find the booking by reference
+    // 1. Ownership check BEFORE doing anything
     $stmt = $this->db->prepare("
-            SELECT
-                b.*,
-                tt.name      AS ticket_type_name,
-                tt.id        AS ticket_type_id,
-                tt.quantity  AS ticket_type_quantity,
-                tt.quantity_sold AS ticket_type_quantity_sold,
-                e.title      AS event_title,
-                e.location   AS event_location,
-                e.start_date AS event_start_date,
-                e.organizer_id,
-                u.name       AS user_name,
-                u.email      AS user_email
-            FROM bookings b
-            JOIN ticket_types tt ON tt.id = b.ticket_type_id
-            JOIN events e        ON e.id  = b.event_id
-            JOIN users u         ON u.id  = b.user_id
-            WHERE b.paystack_reference = ?
-        ");
+      SELECT id, user_id FROM bookings
+      WHERE paystack_reference = ? AND deleted_at IS NULL
+    ");
     $stmt->execute([$reference]);
-    $booking = $stmt->fetch();
+    $row = $stmt->fetch();
 
-    if (!$booking) {
+    if (!$row) {
       Response::notFound('Booking not found.');
     }
 
-    // 2. Make sure this booking belongs to the requesting user
-    if ((int) $booking['user_id'] !== $userId) {
+    if ((int) $row['user_id'] !== $userId) {
       Response::forbidden('This booking does not belong to you.');
     }
 
-    // 3. If already paid, return success without reprocessing
-    //    (handles page refresh on success screen)
-    if ($booking['payment_status'] === Constants::PAYMENT_PAID) {
-      Response::success([
-        'booking_id'     => (int) $booking['id'],
-        'booking_number' => $booking['booking_number'],
-        'event'          => $booking['event_title'],
-        'tickets_issued' => (int) $booking['quantity'],
-      ], 'Booking already confirmed.');
-      return;
-    }
-
-    // 4. Reject if booking is in a terminal failed/cancelled state
-    if (in_array($booking['payment_status'], ['failed', 'cancelled', 'refunded'])) {
-      Response::error('This booking can no longer be processed.', 400);
-      return;
-    }
-
-    // 5. Verify with Paystack
+    // 2. Fulfil (idempotent — safe if the webhook already did it)
     try {
-      $paystack    = new PaystackService();
-      $transaction = $paystack->verifyTransaction($reference);
-
-      // 6. Check Paystack confirms payment was successful
-      if ($transaction['status'] !== 'success') {
-        $this->db->prepare("
-                    UPDATE bookings SET payment_status = 'failed' WHERE id = ?
-                ")->execute([$booking['id']]);
-
-        // ── NEW ── log failed transaction and notify user
-        TransactionService::paymentFailed($booking, 'Paystack returned: ' . $transaction['status']);
-        NotificationService::bookingFailed(
-          (int)$booking['user_id'],
-          (int)$booking['id'],
-          (int)$booking['event_id'],
-          $booking['event_title']
-        );
-        // ── END NEW ──
-
-        Response::error('Payment was not successful. Please try again.', 400);
-        return;
-      }
-
-      // 7. Double-check amount paid matches what we expected
-      //    Prevents paying ₦1 for a ₦10,000 ticket
-      $amountPaidKobo = (int) $transaction['amount'];
-      $expectedKobo   = (int) ($booking['total_amount'] * 100);
-
-      if ($amountPaidKobo < $expectedKobo) {
-        error_log("Amount mismatch on reference {$reference}: paid {$amountPaidKobo}, expected {$expectedKobo}");
-        Response::error('Payment amount does not match. Please contact support.', 400);
-        return;
-      }
-
-      // 8. Mark booking as paid inside a transaction
-      //    trg_booking_paid trigger fires here and increments quantity_sold
-      $this->db->beginTransaction();
-
-      try {
-        $updateStmt = $this->db->prepare("
-                    UPDATE bookings
-                    SET payment_status = 'paid', paid_at = NOW()
-                    WHERE id = ? AND payment_status = 'pending'
-                ");
-        $updateStmt->execute([$booking['id']]);
-
-        // If no rows were updated, another request already processed this
-        if ($updateStmt->rowCount() === 0) {
-          $this->db->rollBack();
-          Response::success([
-            'booking_id'     => (int) $booking['id'],
-            'booking_number' => $booking['booking_number'],
-            'event'          => $booking['event_title'],
-            'tickets_issued' => (int) $booking['quantity'],
-          ], 'Booking already confirmed.');
-          return;
-        }
-
-        // ── NEW: fee calculation + audit + notifications + payout accumulation ──
-        $feePercentage      = PayoutService::getFeePercentage((int)$booking['event_id'], (int)$booking['organizer_id']);
-        $split           = PayoutService::calculateSplit((float)$booking['total_amount'], $feePercentage);
-
-
-        TransactionService::paymentConfirmed(
-          $booking,
-          $split['platform_fee'],
-          $split['organizer_amount'],
-          $transaction['status']
-        );
-
-        PayoutService::accumulateRevenue(
-          (int)   $booking['event_id'],
-          (int)   $booking['organizer_id'],
-          (float) $booking['total_amount'],
-          (float) $feePercentage
-        );
-
-        NotificationService::bookingConfirmed(
-          (int)   $booking['user_id'],
-          (int)   $booking['id'],
-          $booking['event_title'],
-          (int)   $booking['event_id'],
-          (int)   $booking['quantity'],
-          (float) $booking['total_amount']
-        );
-
-        NotificationService::newBookingReceived(
-          (int)   $booking['organizer_id'],
-          (int)   $booking['id'],
-          $booking['user_name'],
-          $booking['event_title'],
-          (int)   $booking['event_id'],
-          (int)   $booking['quantity'],
-          (float) $booking['total_amount']
-        );
-
-        // Low tickets warning — fires if ≤10% tickets remain
-        $salesStmt = $this->db->prepare("
-            SELECT quantity, quantity_sold
-            FROM ticket_types
-            WHERE id = ?
-        ");
-        $salesStmt->execute([$booking['ticket_type_id']]);
-        $sales = $salesStmt->fetch();
-        if ($sales) {
-          $remaining = (int) $sales['quantity'] - (int) $sales['quantity_sold'];
-          $pct = $sales['quantity'] > 0 ? ($remaining / $sales['quantity']) : 1;
-          if ($pct <= 0.10 && $remaining > 0) {
-            NotificationService::lowTicketsWarning(
-              (int) $booking['organizer_id'],
-              (int) $booking['event_id'],
-              $booking['event_title'],
-              $remaining,
-              (int) $sales['quantity']
-            );
-          }
-        }
-        // ── END NEW ──
-
-        // 9. Issue one ticket row per quantity purchased.
-        // This is the ONLY place tickets are created for paid bookings,
-        // so ticket_number generation belongs here — one per real ticket id.
-        $tickets = [];
-        $stmt    = $this->db->prepare("
-                    INSERT INTO tickets (booking_id, user_id, event_id, qr_token)
-                    VALUES (?, ?, ?, ?)
-                ");
-        for ($i = 0; $i < (int) $booking['quantity']; $i++) {
-          $qrToken = TokenHelper::generateQRToken();
-          $stmt->execute([
-            $booking['id'],
-            $booking['user_id'],
-            $booking['event_id'],
-            $qrToken,
-          ]);
-
-          $ticketId     = (int) $this->db->lastInsertId();
-          $ticketNumber = TokenHelper::generateDisplayId($ticketId, 'TK');
-          $this->db->prepare("UPDATE tickets SET ticket_number = ? WHERE id = ?")
-            ->execute([$ticketNumber, $ticketId]);
-
-          $tickets[] = [
-            'id'            => $ticketId,
-            'ticket_number' => $ticketNumber,
-            'qr_token'      => $qrToken,
-          ];
-        }
-
-        $this->db->commit();
-
-        // trg_booking_paid just moved quantity_sold — clear this event's
-        // detail cache so availability shown next is accurate.
-        EventCache::forgetDetail((int) $booking['event_id']);
-      } catch (Exception $e) {
-        if ($this->db->inTransaction()) {
-          $this->db->rollBack();
-        }
-        error_log('Booking verify transaction error: ' . $e->getMessage());
-        Response::error('Could not confirm booking. Please contact support.', 500);
-        return;
-      }
-
-      // 10. Queue ticket PDF generation (runs after email to avoid Chromium contention)
-      // Delayed by 10s to let the email job start first and
-      // avoid two Chromium instances competing for resources.
-      QueueService::generateTicket((int) $booking['id'], 10);
-
-      // 11. Send confirmation email outside the transaction
-      QueueService::sendTicketConfirmation(
-        $booking['user_email'],
-        $booking['user_name'],
-        $booking['event_title'],
-        $booking['event_start_date'],
-        $booking['event_location'],
-        $booking['ticket_type_name'],
-        (int) $booking['quantity'],
-        (float) $booking['total_amount'],
-        Environment::get('FRONTEND_URL') . '/my-bookings',
-        $booking['paystack_reference']
+      $result = BookingFulfillment::run($reference, (int) $row['id']);
+    } catch (\Throwable $e) {
+      error_log('Booking verify error: ' . $e->getMessage());
+      Response::error(
+        'We could not confirm your payment right now. If you were charged, your tickets will appear in My Tickets automatically. Otherwise contact support.',
+        500
       );
+      return;
+    }
+
+    $booking = $result['booking'];
+
+    // 3. Paid (now, or already by webhook / earlier call)
+    if (in_array($result['status'], ['paid', 'already_paid'], true) && $booking) {
+      $c = $this->db->prepare("
+        SELECT COUNT(*) FROM tickets WHERE booking_id = ? AND deleted_at IS NULL
+      ");
+      $c->execute([$booking['id']]);
 
       Response::success([
         'booking_id'     => (int) $booking['id'],
         'booking_number' => $booking['booking_number'],
         'event'          => $booking['event_title'],
-        'tickets_issued' => count($tickets),
-      ], 'Payment confirmed! Your tickets have been issued.');
-    } catch (Exception $e) {
-      error_log('Paystack verify error: ' . $e->getMessage());
-      Response::error('Could not verify payment. Please contact support.', 500);
+        'tickets_issued' => (int) $c->fetchColumn(),
+      ], $result['status'] === 'paid'
+        ? 'Payment confirmed! Your tickets have been issued.'
+        : 'Booking already confirmed.');
+      return;
     }
+
+    // 4. Not paid
+    $ps = $result['paystack_status'] ?? null;
+
+    if (in_array($ps, ['abandoned', 'pending', 'ongoing', 'queued'], true)) {
+      // Payment still in progress or the popup was closed early. Do NOT fail it.
+      Response::error(
+        'Your payment has not been confirmed yet. If you were charged, your tickets will appear automatically within a few minutes.',
+        409
+      );
+      return;
+    }
+
+    if ($ps === 'amount_mismatch') {
+      Response::error('Payment amount does not match. Please contact support.', 400);
+      return;
+    }
+
+    Response::error('Payment was not successful. Please try again.', 400);
   }
 
   // GET /api/bookings/mine
