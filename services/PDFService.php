@@ -146,7 +146,14 @@ class PDFService
           ->setNpmBinary($npmPath)
           ->timeout(180)
           ->noSandbox()
-          ->addChromiumArguments(['--disable-gpu', '--disable-dev-shm-usage'])
+          ->setUserDataDir('/tmp/chromium-profile')
+          ->addChromiumArguments([
+            'disable-gpu',
+            'disable-dev-shm-usage',
+            'disable-crash-reporter',
+            'disable-breakpad',
+            'crash-dumps-dir=/tmp',
+          ])
           ->paperSize(360, 600, 'px')
           ->deviceScaleFactor(3)
           ->showBackground()
@@ -162,7 +169,14 @@ class PDFService
           ->setNodeBinary($nodePath)
           ->setNpmBinary($npmPath)
           ->noSandbox()
-          ->addChromiumArguments(['--disable-gpu', '--disable-dev-shm-usage'])
+          ->setUserDataDir('/tmp/chromium-profile')
+          ->addChromiumArguments([
+            'disable-gpu',
+            'disable-dev-shm-usage',
+            'disable-crash-reporter',
+            'disable-breakpad',
+            'crash-dumps-dir=/tmp',
+          ])
           ->windowSize(360, 600)
           ->deviceScaleFactor(3)
           ->showBackground()
