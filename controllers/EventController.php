@@ -52,8 +52,11 @@ class EventController
 
     $result = EventCache::rememberList(
       [
-        'page' => $page, 'limit' => $limit, 'search' => $search,
-        'category' => $categoryId, 'date' => $dateFilter,
+        'page' => $page,
+        'limit' => $limit,
+        'search' => $search,
+        'category' => $categoryId,
+        'date' => $dateFilter,
       ],
       function () use ($conditions, $params, $where, $page, $limit, $offset) {
         // Get total count for pagination
@@ -161,18 +164,28 @@ class EventController
 
       // Also fetch the ticket types for this event
       $stmt = $this->db->prepare("
-            SELECT id, name, description, price, quantity, quantity_sold, sales_end_at
-            FROM ticket_types
-            WHERE event_id = ?
-            ORDER BY price ASC
-        ");
+      SELECT id, name, description, price, quantity, quantity_sold, quantity_held, sales_end_at
+      FROM ticket_types
+      WHERE event_id = ?
+      ORDER BY price ASC
+  ");
       $stmt->execute([$event['id']]);
       $ticketTypes = $stmt->fetchAll();
 
-      // Add available count to each ticket type
+      // Held tickets are invisible to the public: shrink the visible
+      // capacity instead of exposing the hold itself.
+      $totalHeld = 0;
       foreach ($ticketTypes as &$type) {
-        $type['available'] = (int) $type['quantity'] - (int) $type['quantity_sold'];
+        $held = (int) $type['quantity_held'];
+        $totalHeld += $held;
+        $type['quantity']  = (int) $type['quantity'] - $held;
+        $type['available'] = $type['quantity'] - (int) $type['quantity_sold'];
+        unset($type['quantity_held']);
       }
+      unset($type);
+
+      $event['total_tickets']     = max(0, (int) $event['total_tickets'] - $totalHeld);
+      $event['tickets_available'] = max(0, (int) $event['tickets_available'] - $totalHeld);
 
       $event['ticket_types'] = $ticketTypes;
 
@@ -402,6 +415,65 @@ class EventController
     }
     // ── END NEW ──
 
+    // ── NEW: ticket-type guards (holds validation + price-change confirmation) ──
+    $priceChanges = [];
+    if (!empty($input['ticket_types']) && is_array($input['ticket_types'])) {
+      $existingStmt = $this->db->prepare("
+        SELECT id, name, price, quantity, quantity_sold, quantity_held
+        FROM ticket_types WHERE event_id = ?
+      ");
+      $existingStmt->execute([$eventId]);
+      $existingTypes = [];
+      foreach ($existingStmt->fetchAll() as $row) {
+        $existingTypes[(int) $row['id']] = $row;
+      }
+
+      foreach ($input['ticket_types'] as $type) {
+        $typeId = (int) ($type['id'] ?? 0);
+        if (!$typeId || !isset($existingTypes[$typeId])) continue;
+        $old = $existingTypes[$typeId];
+
+        // Holds can't be negative or exceed what's left unsold
+        $newQty  = isset($type['quantity'])      ? (int) $type['quantity']      : (int) $old['quantity'];
+        $newHeld = isset($type['quantity_held']) ? (int) $type['quantity_held'] : (int) $old['quantity_held'];
+        if ($newHeld < 0 || $newHeld + (int) $old['quantity_sold'] > $newQty) {
+          $errors['ticket_types'] = "Held tickets for \"{$old['name']}\" can't exceed the unsold quantity ("
+            . max(0, $newQty - (int) $old['quantity_sold']) . ').';
+        }
+
+        // Price-change guard (published events only)
+        if (isset($type['price']) && $event['status'] === Constants::EVENT_PUBLISHED) {
+          $oldPrice = (float) $old['price'];
+          $newPrice = (float) $type['price'];
+          $sold     = (int) $old['quantity_sold'];
+          $goesFree = $newPrice == 0.0 && $oldPrice > 0.0;
+
+          if ($newPrice !== $oldPrice && ($goesFree || $sold > 0)) {
+            $priceChanges[] = [
+              'ticket_type_id' => $typeId,
+              'tier'           => $old['name'],
+              'old_price'      => $oldPrice,
+              'new_price'      => $newPrice,
+              'quantity_sold'  => $sold,
+              'goes_free'      => $goesFree,
+            ];
+          }
+        }
+      }
+
+      if (!empty($errors)) {
+        Response::validationError($errors);
+      }
+
+      if (!empty($priceChanges) && empty($input['confirm_price_change'])) {
+        Response::conflict(
+          'You are changing the price of a live ticket tier. Please confirm to continue.',
+          ['code' => 'PRICE_CHANGE_CONFIRMATION_REQUIRED', 'price_changes' => $priceChanges]
+        );
+      }
+    }
+    // ── END NEW ──
+
     // Upsert ticket types
     if (!empty($input['ticket_types']) && is_array($input['ticket_types'])) {
       foreach ($input['ticket_types'] as $type) {
@@ -413,13 +485,15 @@ class EventController
               description  = COALESCE(NULLIF(?, ''), description),
               price        = COALESCE(?, price),
               quantity     = COALESCE(?, quantity),
-              sales_end_at = ?
+              quantity_held = COALESCE(?, quantity_held),
+              sales_end_at = ?..
             WHERE id = ? AND event_id = ?
           ")->execute([
             $type['name']         ?? null,
             $type['description']  ?? '',
             $type['price']        ?? null,
             $type['quantity']     ?? null,
+            isset($type['quantity_held']) ? (int) $type['quantity_held'] : null,
             $type['sales_end_at'] ?: null,
             (int) $type['id'],
             $eventId,
@@ -491,6 +565,24 @@ class EventController
     $stmt = $this->db->prepare('SELECT * FROM events WHERE id = ?');
     $stmt->execute([$eventId]);
     $updatedEvent = $stmt->fetch();
+
+    // ── NEW: audit trail for confirmed price changes ──
+    foreach ($priceChanges as $c) {
+      try {
+        $desc = mb_substr(
+          "Event #{$eventId} tier \"{$c['tier']}\" price {$c['old_price']} -> {$c['new_price']} ({$c['quantity_sold']} already sold)",
+          0,
+          255
+        );
+        $this->db->prepare("
+          INSERT INTO activity_logs (user_id, action, description, ip_address)
+          VALUES (?, 'ticket_price_changed', ?, ?)
+        ")->execute([$userId, $desc, $_SERVER['REMOTE_ADDR'] ?? null]);
+      } catch (Exception $e) {
+        error_log('Price change log error: ' . $e->getMessage());
+      }
+    }
+    // ── END NEW ──
 
     // ── NEW: update payout hold_until if end_date changed ──
     if (!empty($input['end_date'])) {
@@ -698,7 +790,7 @@ class EventController
     $eventId = (int) $event['id'];
 
     $stmt = $this->db->prepare("
-        SELECT id, name, description, price, quantity, quantity_sold, sales_end_at
+        SELECT id, name, description, price, quantity, quantity_sold, quantity_held, sales_end_at
         FROM ticket_types WHERE event_id = ? ORDER BY price ASC
     ");
     $stmt->execute([$eventId]);
