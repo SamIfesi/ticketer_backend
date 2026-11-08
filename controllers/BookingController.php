@@ -325,6 +325,16 @@ class BookingController
       Response::success(['has_pending' => false]);
       return;
     }
+    
+    try {
+      $prior = BookingFulfillment::run($existing['paystack_reference'], (int) $existing['id']);
+      if (in_array($prior['status'], ['paid', 'already_paid'], true)) {
+        Response::success(['has_pending' => false, 'already_paid' => true]);
+        return;
+      }
+    } catch (\Throwable $e) {
+      // Paystack unreachable: fall through and continue as before
+    }
 
     // Re-initialize with the same reference
     try {
