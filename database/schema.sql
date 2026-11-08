@@ -276,13 +276,15 @@ CREATE TABLE `ticket_types` (
   `price` decimal(10,2) NOT NULL DEFAULT '0.00',
   `quantity` int unsigned NOT NULL,
   `quantity_sold` int unsigned NOT NULL DEFAULT '0',
+  `quantity_held` int unsigned NOT NULL DEFAULT '0',
   `sales_end_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `event_id` (`event_id`),
   CONSTRAINT `ticket_types_ibfk_1` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE RESTRICT,
-  CONSTRAINT `chk_no_oversell` CHECK ((`quantity_sold` <= `quantity`))
+  CONSTRAINT `chk_no_oversell` CHECK ((`quantity_sold` <= `quantity`)),
+  CONSTRAINT `chk_held_valid` CHECK ((`quantity_sold` + `quantity_held` <= `quantity`))
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
