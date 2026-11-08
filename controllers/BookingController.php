@@ -77,7 +77,7 @@ class BookingController
       // 6. Lock the ticket type row so no concurrent request
       //    can pass the availability check before we commit
       $stmt = $this->db->prepare("
-                SELECT quantity, quantity_sold, (quantity - quantity_sold) AS available
+                SELECT quantity, quantity_sold, quantity_held, (quantity - quantity_sold - quantity_held) AS available
                 FROM ticket_types
                 WHERE id = ?
                 FOR UPDATE
