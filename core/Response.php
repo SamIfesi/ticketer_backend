@@ -82,4 +82,13 @@ class Response
     echo json_encode($payload);
     exit;
   }
+
+  // 409 Conflict — for example, when trying to create a resource that already exists
+  public static function conflict(string $message, array $extra = []): void
+  {
+    self::send(array_merge([
+      'status'  => 'error',
+      'message' => $message,
+    ], $extra), 409);
+  }
 }
