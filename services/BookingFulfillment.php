@@ -213,18 +213,20 @@ class BookingFulfillment
       );
 
       // Low-ticket warning (<= 10% left)
-      $s = $db->prepare("SELECT quantity, quantity_sold FROM ticket_types WHERE id = ?");
+      $s = $db->prepare("SELECT quantity, quantity_sold, quantity_held FROM ticket_types WHERE id = ?");
       $s->execute([$booking['ticket_type_id']]);
       $sales = $s->fetch();
-      if ($sales && (int) $sales['quantity'] > 0) {
-        $remaining = (int) $sales['quantity'] - (int) $sales['quantity_sold'];
-        if ($remaining > 0 && ($remaining / (int) $sales['quantity']) <= 0.10) {
+      // Held tickets aren't for sale, so measure scarcity against what buyers can actually see
+      $effectiveQty = $sales ? (int) $sales['quantity'] - (int) $sales['quantity_held'] : 0;
+      if ($sales && $effectiveQty > 0) {
+        $remaining = $effectiveQty - (int) $sales['quantity_sold'];
+        if ($remaining > 0 && ($remaining / $effectiveQty) <= 0.10) {
           NotificationService::lowTicketsWarning(
             (int) $booking['organizer_id'],
             (int) $booking['event_id'],
             $booking['event_title'],
             $remaining,
-            (int) $sales['quantity']
+            $effectiveQty
           );
         }
       }
