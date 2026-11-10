@@ -790,11 +790,31 @@ class EventController
     $eventId = (int) $event['id'];
 
     $stmt = $this->db->prepare("
-        SELECT id, name, description, price, quantity, quantity_sold, quantity_held, sales_end_at
-        FROM ticket_types WHERE event_id = ? ORDER BY price ASC
-    ");
+      SELECT
+          tt.id, tt.name, tt.description, tt.price, tt.quantity,
+          tt.quantity_sold, tt.quantity_held, tt.sales_end_at,
+          COALESCE(SUM(CASE WHEN b.payment_status = 'paid'
+                            THEN b.total_amount END), 0)            AS revenue,
+          COALESCE(SUM(CASE WHEN b.payment_status = 'paid' AND b.total_amount = 0
+                            THEN b.quantity END), 0)                AS free_sold,
+          COALESCE(SUM(CASE WHEN b.payment_status = 'paid' AND b.total_amount > 0
+                            THEN b.quantity END), 0)                AS paid_sold
+      FROM ticket_types tt
+      LEFT JOIN bookings b
+             ON b.ticket_type_id = tt.id AND b.deleted_at IS NULL
+      WHERE tt.event_id = ?
+      GROUP BY tt.id
+      ORDER BY tt.price ASC
+      ");
     $stmt->execute([$eventId]);
-    $event['ticket_types'] = $stmt->fetchAll();
+    $types = $stmt->fetchAll();
+    foreach ($types as &$t) {
+      $t['revenue']   = (float) $t['revenue'];
+      $t['free_sold'] = (int) $t['free_sold'];
+      $t['paid_sold'] = (int) $t['paid_sold'];
+    }
+    unset($t);
+    $event['ticket_types'] = $types;
 
     Response::success(['event' => $event]);
   }
