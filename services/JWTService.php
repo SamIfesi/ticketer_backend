@@ -78,6 +78,25 @@ class JWTService
   }
 
   /**
+   *    * Pick the cookie domain from the host serving the request.
+   *    * A cookie cannot span two registrable domains, so each domain
+   *    * gets its own cookie (.ticketer.website or .ticketer.com.ng).
+   *    */
+    private static function resolveCookieDomain(): string
+    {
+      $fallback = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
+      $host = strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]);
+
+      foreach (['ticketer.com.ng', 'ticketer.website'] as $base) {
+        if ($host === $base || str_ends_with($host, '.' . $base)) {
+          return '.' . $base;
+        }
+      }
+
+        return $fallback;
+      }
+
+  /**
    * Set the auth cookie so the JWT is shared across every
    * ticketer.website subdomain (ticketer.website, app.ticketer.website, etc).
    *
@@ -98,7 +117,7 @@ class JWTService
     $expiry     = (int) Environment::get('JWT_EXPIRY', '86400');
     $appEnv     = Environment::get('APP_ENV', 'production');
     $isLocal    = $appEnv === 'development';
-    $cookieHost = Environment::get('COOKIE_DOMAIN', '.ticketer.website');
+    $cookieHost = self::resolveCookieDomain();
 
     $cookieOptions = [
       'expires'  => time() + $expiry,

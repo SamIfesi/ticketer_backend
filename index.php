@@ -6,7 +6,7 @@ date_default_timezone_set('UTC');
 
 // 1. CORS
 
-$allowedOriginPattern = '/^https:\/\/([a-z0-9-]+\.)?ticketer\.website$/i';
+$allowedOriginPattern = '/^https:\/\/([a-z0-9-]+\.)?ticketer\.(website|com\.ng)$/i';
 
 $isLocalDev = preg_match('/^http:\/\/localhost(:\d+)?$/i', $_SERVER['HTTP_ORIGIN'] ?? '');
 
