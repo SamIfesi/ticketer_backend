@@ -238,7 +238,11 @@ class AuthController
   // Protected: logged in
   public function logout(): void
   {
-    $this->logActivity($this->request->user['id'], 'logout', 'Logged out');
+    // $this->logActivity($this->request->user['id'], 'logout', 'Logged out');
+    $payload = ($token = $this->request->bearerToken()) ? JWTService::verify($token) : null;
+    if ($payload && isset($payload['id'])) {
+      $this->logActivity((int) $payload['id'], 'logout', 'Logged out');
+    }
     JWTService::clearAuthCookie();
     Response::success(null, 'Logged out successfully.');
   }
