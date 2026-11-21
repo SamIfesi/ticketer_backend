@@ -163,6 +163,10 @@ class JWTService
     }
 
     setcookie('token', '', $cookieOptions);
+    if (isset($cookieOptions['domain'])) {
+      unset($cookieOptions['domain']);
+      setcookie('token', '', $cookieOptions);
+    }
   }
 
   private static function base64UrlEncode(string $data): string
