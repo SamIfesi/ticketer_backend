@@ -59,6 +59,7 @@ require_once __DIR__ . '/services/PayoutService.php';
 require_once __DIR__ . '/services/PDFService.php';
 require_once __DIR__ . '/services/CloudinaryService.php';
 require_once __DIR__ . '/services/BookingFulfillment.php';
+require_once __DIR__ . '/services/DomainResolver.php';
 
 require_once __DIR__ . '/middleware/AuthMiddleware.php';
 require_once __DIR__ . '/middleware/RoleMiddleware.php';
