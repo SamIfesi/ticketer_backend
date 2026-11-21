@@ -169,7 +169,7 @@ class BookingController
           $ticketType['name'],
           $quantity,
           0,
-          Environment::get('FRONTEND_URL') . '/my-tickets',
+          DomainResolver::frontendUrl() . '/my-tickets',
           'free-' . $bookingId
         );
         QueueService::generateTicket($bookingId, 10); // Queue ticket PDF generation

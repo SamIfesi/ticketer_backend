@@ -25,7 +25,7 @@ class EventMetaController
       return;
     }
 
-    $frontendUrl = rtrim(Environment::get('FRONTEND_URL', 'https://ticketer-e.vercel.app'), '/');
+    $frontendUrl = DomainResolver::frontendUrl();
     $title = htmlspecialchars($event['title'], ENT_QUOTES);
     $description = htmlspecialchars(mb_substr($event['description'] ?? '', 0, 160), ENT_QUOTES);
     $image = htmlspecialchars($event['banner_image'] ?? '', ENT_QUOTES);
