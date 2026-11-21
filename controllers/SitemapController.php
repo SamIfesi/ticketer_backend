@@ -23,7 +23,7 @@ class SitemapController
     header('Content-Type: application/xml; charset=utf-8');
 
     $db = Database::connect();
-    $appUrl = DomainResolver::frontendUrl()
+    $appUrl = DomainResolver::frontendUrl();
 
     $stmt = $db->prepare("
       SELECT slug, updated_at
