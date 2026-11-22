@@ -96,6 +96,8 @@ class AuthController
     $token = JWTService::generate($user);
     JWTService::setAuthCookie($token);
 
+    unset($user['token_version']);
+
     Response::success([
       'user'         => $user,
       'token'        => $token,
@@ -226,6 +228,8 @@ class AuthController
 
     $token = JWTService::generate($user);
     JWTService::setAuthCookie($token);
+
+    unset($user['token_version']);
 
     Response::success([
       'user'           => $user,

@@ -101,6 +101,14 @@ class GoogleAuthController
     $token = JWTService::generate($user);
     JWTService::setAuthCookie($token);
 
+    unset(
+      $user['token_version'],
+      $user['is_active'],
+      $user['google_id'],
+      $user['auth_provider'],
+      $user['avatar_public_id'],
+      );
+
     Response::success([
       'user'           => $user,
       'token'          => $token,
