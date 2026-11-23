@@ -40,9 +40,7 @@ class GoogleAuthController
   }
 
   // POST /api/auth/callback/google
-  //
-  // Body: { id_token: string }
-  //
+  // Body: { id_token: string, mode?: 'login'|'register', terms_accepted?: bool }
   // Returns same shape as /api/auth/login:
   //   { user, token, email_verified: true }
   public function googleLogin(): void
@@ -52,6 +50,16 @@ class GoogleAuthController
     if (empty($idToken)) {
       Response::validationError(['id_token' => 'Google ID token is required.']);
     }
+
+    $mode = $this->request->input('mode', 'login');
+    if (!in_array($mode, ['login', 'register'], true)) {
+      $mode = 'login';
+    }
+
+    $termsAccepted = filter_var(
+      $this->request->input('terms_accepted', false),
+      FILTER_VALIDATE_BOOLEAN
+    );
 
     // ── Step 1: Verify the ID token ────────────────────────
     $googleUser = $this->verifyGoogleIdToken($idToken);
@@ -87,6 +95,17 @@ class GoogleAuthController
       $this->syncGoogleData($user['id'], $googleId, $avatar, $user);
       $user = $this->fetchUserById($user['id']);
     } else {
+      // No account yet. Only the register flow may create one.
+      if ($mode !== 'register') {
+        Response::error('No account found for this Google account. Please sign up first.', 404);
+      }
+
+      if (!$termsAccepted) {
+        Response::validationError([
+          'terms_accepted' => 'You must agree to the Terms and Privacy Policy to create an account.',
+        ]);
+      }
+
       $user = $this->createGoogleUser($googleId, $email, $name, $avatar);
     }
 
