@@ -38,6 +38,10 @@ class AuthController
     $name     = trim($this->request->input('name', ''));
     $email    = trim($this->request->input('email', ''));
     $password = $this->request->input('password', '');
+    $termsAccepted = filter_var(
+      $this->request->input('terms_accepted', false),
+      FILTER_VALIDATE_BOOLEAN
+    );
 
     $errors = ValidationHelper::check(
       ['name' => $name, 'email' => $email, 'password' => $password],
@@ -47,6 +51,11 @@ class AuthController
         'password' => 'required|min:8',
       ]
     );
+
+    // Creating an account requires agreeing to the Terms and Privacy Policy
+    if (!$termsAccepted) {
+      $errors['terms_accepted'] = 'You must agree to the Terms and Privacy Policy to create an account.';
+    }
 
     if (!empty($errors)) {
       Response::validationError($errors);
